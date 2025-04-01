@@ -75,7 +75,9 @@ func (p *psql) SaveDelegations(ctx context.Context, delegations []*model.Delegat
 	for _, delegation := range delegations {
 		_, err := tx.ExecContext(ctx, query, delegation.Delegator, delegation.Timestamp, delegation.Amount, delegation.Level)
 		if err != nil {
-			tx.Rollback()
+			if errRollBack := tx.Rollback(); errRollBack != nil {
+				return errors.New("query execution error: " + err.Error() + ", rollback error: " + errRollBack.Error())
+			}
 			return err
 		}
 	}

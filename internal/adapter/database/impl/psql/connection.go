@@ -11,6 +11,8 @@ import (
 	_ "github.com/mattn/go-sqlite3" // SQLite driver (keeping for backward compatibility)
 )
 
+var execCommand = exec.Command
+
 // initConnection initializes the database connection.
 func initConnection(cfg Config) (*sqlx.DB, error) {
 
@@ -35,7 +37,7 @@ func initConnection(cfg Config) (*sqlx.DB, error) {
 
 // runSqitchMigrations runs the database migrations using sqitch.
 func runSqitchMigrations(cfg Config) error {
-	cmd := exec.Command("./scripts/db_migrate.sh")
+	cmd := execCommand("../../../../../scripts/db_migrate.sh")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
