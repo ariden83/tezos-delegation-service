@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/tezos-delegation-service/internal/adapter/database"
-	"github.com/tezos-delegation-service/internal/adapter/database/impl/memory"
+	// "github.com/tezos-delegation-service/internal/adapter/database/impl/memory"
 	"github.com/tezos-delegation-service/internal/adapter/database/impl/mock"
 	"github.com/tezos-delegation-service/internal/adapter/database/impl/psql"
 	"github.com/tezos-delegation-service/internal/adapter/database/proxy"
@@ -52,8 +52,8 @@ func New(cfg Config, metricsClient metrics.Adapter) (database.Adapter, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create SQL repository: %w", err)
 		}
-	case ImplMemory:
-		adapter = memory.New()
+		// case ImplMemory:
+	// 	adapter = memory.New()
 	default:
 		return nil, fmt.Errorf("unsupported implementation type: %s", cfg.Impl)
 	}
@@ -63,5 +63,5 @@ func New(cfg Config, metricsClient metrics.Adapter) (database.Adapter, error) {
 
 // NewMock returns a new filestorage mock adapter.
 func NewMock(t *testing.T) *mock.Mock {
-	return mock.New(t)
+	return mock.New()
 }
