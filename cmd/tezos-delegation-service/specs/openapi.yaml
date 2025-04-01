@@ -1,0 +1,346 @@
+openapi: 3.0.3
+info:
+  title: Tezos Delegation Service API
+  description: |
+    API pour accéder aux données de délégation Tezos.
+    Cette API expose des endpoints pour récupérer les informations de délégation historiques.
+  version: 1.0.0
+  contact:
+    name: Tezos Delegation Service Team
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+paths:
+  /xtz/delegations:
+    get:
+      summary: Récupérer la liste des délégations
+      description: Retourne les délégations avec pagination et filtrage par année optionnel.
+      operationId: getDelegations
+      parameters:
+        - name: page
+          in: query
+          description: Numéro de page (commence é 1)
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          description: Nombre d'éléments par page
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: year
+          in: query
+          description: Filtrer par année (ex. 2022)
+          required: false
+          schema:
+            type: integer
+        - name: If-None-Match
+          in: header
+          description: Support des requétes conditionnelles pour l'ETag
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Liste des délégations avec informations de pagination
+          headers:
+            Cache-Control:
+              description: |
+                Directives de mise en cache pour les navigateurs et CDNs.
+                Pour les requétes avec un filtre d'année spécifique, utilise "public, max-age=3600" (1 heure).
+                Pour les requétes générales, utilise "public, max-age=300" (5 minutes).
+              schema:
+                type: string
+                example: "public, max-age=300"
+            ETag:
+              description: Identifiant unique pour la version actuelle des données
+              schema:
+                type: string
+                example: '"1502sdf"'
+            X-Page-Current:
+              description: Numéro de page actuelle
+              schema:
+                type: string
+            X-Page-Per-Page:
+              description: Nombre d'éléments par page
+              schema:
+                type: string
+            X-Page-Total-Items:
+              description: Nombre total d'éléments
+              schema:
+                type: string
+            X-Page-Total-Pages:
+              description: Nombre total de pages
+              schema:
+                type: string
+            X-Page-Prev:
+              description: Numéro de la page précédente (si disponible)
+              schema:
+                type: string
+            X-Page-Next:
+              description: Numéro de la page suivante (si disponible)
+              schema:
+                type: string
+            X-Request-ID:
+              description: Identifiant unique pour cette requéte
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DelegationResponse'
+        '304':
+          description: Les données n'ont pas été modifiées (réponse é une requéte conditionnelle)
+          headers:
+            Cache-Control:
+              description: Directives de mise en cache
+              schema:
+                type: string
+                example: "public, max-age=300"
+            ETag:
+              description: Identifiant unique pour la version actuelle des données
+              schema:
+                type: string
+        '500':
+          description: Erreur interne du serveur
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /health:
+    get:
+      summary: Vérifier l'état général du service
+      description: Retourne l'état général du service, y compris la base de données
+      operationId: healthCheck
+      responses:
+        '200':
+          description: état du service
+          headers:
+            Cache-Control:
+              description: Empéche la mise en cache des données de santé
+              schema:
+                type: string
+                example: "no-cache, no-store, must-revalidate"
+            Pragma:
+              description: Directive de compatibilité HTTP/1.0 pour éviter la mise en cache
+              schema:
+                type: string
+                example: "no-cache"
+            Expires:
+              description: Date d'expiration immédiate
+              schema:
+                type: string
+                example: "0"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: état du service (ok, degraded)
+                    example: ok
+                  uptime:
+                    type: string
+                    description: Durée d'exécution du service
+                    example: 24h30m15s
+                  database:
+                    type: string
+                    description: état de la base de données (ok, error)
+                    example: ok
+                  ready:
+                    type: boolean
+                    description: Si le service est prét é servir des requétes
+                    example: true
+                  shutdown:
+                    type: boolean
+                    description: Si le service est en cours d'arrét
+                    example: false
+  /health/live:
+    get:
+      summary: Vérifier si le service est en vie
+      description: Utilisé pour les healthchecks Kubernetes liveness probe
+      operationId: livenessCheck
+      responses:
+        '200':
+          description: Le service est en vie
+          headers:
+            Cache-Control:
+              description: Empéche la mise en cache des données de santé
+              schema:
+                type: string
+                example: "no-cache, no-store, must-revalidate"
+            Pragma:
+              description: Directive de compatibilité HTTP/1.0 pour éviter la mise en cache
+              schema:
+                type: string
+                example: "no-cache"
+            Expires:
+              description: Date d'expiration immédiate
+              schema:
+                type: string
+                example: "0"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: état de vie du service
+                    example: alive
+                  uptime:
+                    type: string
+                    description: Durée d'exécution du service
+                    example: 24h30m15s
+                  started:
+                    type: string
+                    format: date-time
+                    description: Date et heure de démarrage
+                    example: "2023-05-20T08:30:00Z"
+        '503':
+          description: Le service est en cours d'arrét
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: état du service
+                    example: shutting_down
+                  message:
+                    type: string
+                    description: Message expliquant l'état
+                    example: Service is shutting down
+                  uptime:
+                    type: string
+                    description: Durée d'exécution du service
+                    example: 24h30m15s
+  /health/ready:
+    get:
+      summary: Vérifier si le service est prét é recevoir des requétes
+      description: Utilisé pour les healthchecks Kubernetes readiness probe
+      operationId: readinessCheck
+      responses:
+        '200':
+          description: Le service est prét
+          headers:
+            Cache-Control:
+              description: Empéche la mise en cache des données de santé
+              schema:
+                type: string
+                example: "no-cache, no-store, must-revalidate"
+            Pragma:
+              description: Directive de compatibilité HTTP/1.0 pour éviter la mise en cache
+              schema:
+                type: string
+                example: "no-cache"
+            Expires:
+              description: Date d'expiration immédiate
+              schema:
+                type: string
+                example: "0"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: état de disponibilité
+                    example: ready
+        '503':
+          description: Le service n'est pas prét ou a un probléme
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: état du service
+                    example: not_ready
+                  message:
+                    type: string
+                    description: Message expliquant l'état
+                    example: Service is starting up
+components:
+  schemas:
+    Delegation:
+      type: object
+      properties:
+        delegator:
+          type: string
+          description: Adresse du délégateur
+          example: tz1a1SAaXRt9yoGMx29rh9FsBF4UzmvojdTL
+        timestamp:
+          type: integer
+          description: Timestamp UNIX de la délégation
+          example: 1652345678
+        amount:
+          type: number
+          format: float
+          description: Montant de la délégation
+          example: 100.5
+        level:
+          type: integer
+          description: Niveau du bloc Tezos
+          example: 2338084
+    PaginationInfo:
+      type: object
+      properties:
+        current_page:
+          type: integer
+          description: Numéro de page actuelle
+          example: 1
+        per_page:
+          type: integer
+          description: Nombre d'éléments par page
+          example: 50
+        total_items:
+          type: integer
+          description: Nombre total d'éléments
+          example: 1000
+        total_pages:
+          type: integer
+          description: Nombre total de pages
+          example: 20
+        has_prev_page:
+          type: boolean
+          description: Indique s'il y a une page précédente
+          example: false
+        has_next_page:
+          type: boolean
+          description: Indique s'il y a une page suivante
+          example: true
+        prev_page:
+          type: integer
+          description: Numéro de la page précédente (si disponible)
+          example: null
+        next_page:
+          type: integer
+          description: Numéro de la page suivante (si disponible)
+          example: 2
+    DelegationResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Delegation'
+        pagination:
+          $ref: '#/components/schemas/PaginationInfo'
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Message d'erreur
+          example: Internal server error

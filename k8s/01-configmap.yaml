@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tezos-delegation-config
+  namespace: tezos-delegation
+data:
+  config.yaml: |
+    server:
+      port: 8080
+      
+    database:
+      driver: sqlite3
+      dsn: /app/data/tezos_delegations.db
+      repository_type: sql  # Options: sql, mock
+    
+    tzkt:
+      api_url: https://api.tzkt.io
+      polling_interval: 60 # in seconds
+      
+    pagination:
+      limit: 50

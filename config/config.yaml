@@ -1,0 +1,28 @@
+server:
+  port: 8080
+  
+database:
+  driver: postgres
+  dsn: postgres://postgres:postgres@db:5432/tezos_delegations?sslmode=disable
+  repository_type: sql  # Options: sql, mock
+
+tzkt:
+  api_url: https://api.tzkt.io
+  polling_interval: 60 # in seconds
+  
+pagination:
+  limit: 50
+
+service:
+  type: real  # Options: real, mock
+
+logging:
+  level: info  # Options: debug, info, warn, error
+  format: json  # Options: json, text
+  enable_file: false
+  file_path: /var/log/tezos-delegation-service.log
+  graylog:
+    enabled: false
+    url: graylog.example.com
+    port: 12201
+    facility: tezos-delegation-service

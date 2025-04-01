@@ -1,0 +1,47 @@
+# Stage 1: Modules caching
+FROM golang:1.18-alpine as modules
+WORKDIR /modules
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Stage 2: Linting
+FROM golangci/golangci-lint:v1.51.2-alpine as lint
+WORKDIR /app
+COPY --from=modules /go/pkg /go/pkg
+COPY . .
+# Run linting
+RUN golangci-lint run --timeout=5m
+
+# Stage 3: Testing
+FROM golang:1.18-alpine as test
+WORKDIR /app
+COPY --from=modules /go/pkg /go/pkg
+# Install SQLite dependencies for testing
+RUN apk add --no-cache gcc musl-dev sqlite-dev
+COPY . .
+# Run tests
+RUN go test -mod=mod -v ./...
+
+# Stage 4: Building
+FROM golang:1.18-alpine as builder
+WORKDIR /app
+COPY --from=modules /go/pkg /go/pkg
+COPY . .
+# Build the binary
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -o tezos-delegation-api ./cmd/tezos-delegation-api
+
+# Stage 5: Final lightweight image
+FROM alpine:latest
+WORKDIR /app
+# Install required runtime packages
+RUN apk --no-cache add ca-certificates tzdata
+# Copy binary, config and scripts from builder stage
+COPY --from=builder /app/tezos-delegation-api /app/tezos-delegation-api
+COPY --from=builder /app/config /app/config
+COPY --from=builder /app/scripts /app/scripts
+# Create data directory
+RUN mkdir -p /app/data
+# Expose port
+EXPOSE 8080
+# Run binary
+CMD ["./tezos-delegation-api"]

@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+Dockerfile.multistage
+.dockerignore
+
+# Vendor directory
+vendor/
+
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Testing
+*.test
+*.out
+
+# Data directory
+data/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Log files
+*.log
+
+# macOS specific files
+.DS_Store
+
+# Windows specific files
+Thumbs.db
+desktop.ini
