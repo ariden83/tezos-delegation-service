@@ -39,6 +39,9 @@ func (m *Mock) SaveDelegations(ctx context.Context, delegations []*model.Delegat
 // GetLatestDelegation returns the latest delegation from the repository.
 func (m *Mock) GetLatestDelegation(ctx context.Context) (*model.Delegation, error) {
 	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*model.Delegation), args.Error(1)
 }
 

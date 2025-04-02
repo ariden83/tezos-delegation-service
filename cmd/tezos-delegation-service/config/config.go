@@ -13,27 +13,21 @@ import (
 type Config struct {
 	Server ServerConfig
 
-	DatabaseAdapter datbasefactory.Config
-	TZKTApiAdapter  tzktapifactory.Config
-	Pagination      PaginationConfig
-	Service         ServiceConfig
-	Metrics         metricsfactory.Config
-	Logging         logger.Config
+	DatabaseAdapter datbasefactory.Config `mapstructure:"database"`
+	TZKTApiAdapter  tzktapifactory.Config `mapstructure:"tzktapi"`
+	Pagination      PaginationConfig      `mapstructure:"pagination"`
+	Metrics         metricsfactory.Config `mapstructure:"metrics"`
+	Logging         logger.Config         `mapstructure:"logging"`
 }
 
 // ServerConfig represents the server configuration.
 type ServerConfig struct {
-	Port int
+	Port int `mapstructure:"port"`
 }
 
 // PaginationConfig represents the pagination configuration.
 type PaginationConfig struct {
-	Limit int
-}
-
-// ServiceConfig represents the service configuration.
-type ServiceConfig struct {
-	Type string
+	Limit int `mapstructure:"limit"`
 }
 
 // Load loads the configuration from the specified file.

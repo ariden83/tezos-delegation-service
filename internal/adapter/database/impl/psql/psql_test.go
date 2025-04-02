@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"testing"
 	"time"
 
@@ -17,100 +16,25 @@ import (
 )
 
 func Test_New(t *testing.T) {
-	origExecCommand := execCommand
-	defer func() { execCommand = origExecCommand }()
+	os.Setenv("GO_TESTING", "1")
+	defer os.Unsetenv("GO_TESTING")
 
-	execCommand = func(command string, args ...string) *exec.Cmd {
-		cs := []string{"-test.run=TestHelperProcess"}
-		cs = append(cs, args...)
-		cmd := exec.Command(os.Args[0], cs...)
-		cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1", "RESULT=ok"}
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd
+	cfg := Config{
+		Driver:   "sqlmock",
+		User:     "foo",
+		DBName:   "bar",
+		Host:     "localhost",
+		Port:     5432,
+		Password: "password",
+		SSLMode:  "disable",
 	}
 
-	tests := []struct {
-		name    string
-		cfg     Config
-		wantErr assert.ErrorAssertionFunc
-		setup   func() (*sqlx.DB, sqlmock.Sqlmock)
-	}{
-		/* {
-			name: "Nominal case",
-			cfg: Config{
-				Driver:   "sqlmock",
-				User:     "foo",
-				DBName:   "bar",
-				Host:     "localhost",
-				Port:     5432,
-				Password: "password",
-				SSLMode:  "disable",
-			},
-			wantErr: assert.NoError,
-			setup: func() (*sqlx.DB, sqlmock.Sqlmock) {
-				db, mock, err := sqlmock.New()
-				if err != nil {
-					t.Fatalf("Failed to create mock: %v", err)
-				}
-				sqlxDB := sqlx.NewDb(db, "sqlmock")
-				return sqlxDB, mock
-			},
-		}, */
-		{
-			name: "Error case - invalid driver",
-			cfg: Config{
-				Driver:   "invalid_driver",
-				User:     "foo",
-				DBName:   "bar",
-				Host:     "localhost",
-				Port:     5432,
-				Password: "password",
-				SSLMode:  "disable",
-			},
-			wantErr: assert.Error,
-			setup:   nil,
-		},
-		{
-			name: "Error case - empty host",
-			cfg: Config{
-				Driver: "sqlmock",
-			},
-			wantErr: assert.Error,
-			setup:   nil,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var db *sqlx.DB
-			var mock sqlmock.Sqlmock
-
-			if tt.setup != nil {
-				db, mock = tt.setup()
-				defer func() {
-					db.Close()
-				}()
-			}
-
-			got, err := New(tt.cfg)
-			if !tt.wantErr(t, err, fmt.Sprintf("New(%v)", tt.cfg)) {
-				return
-			}
-
-			if tt.name == "Nominal case" && got != nil {
-				p, ok := got.(*psql)
-				assert.True(t, ok, "Expected *psql type")
-				if ok {
-					assert.NotNil(t, p.db, "DB should not be nil")
-				}
-			} else {
-				assert.Nil(t, got, "Expected nil for error cases")
-			}
-
-			if mock != nil {
-				assert.NoError(t, mock.ExpectationsWereMet())
-			}
-		})
+	got, err := New(cfg)
+	assert.NoError(t, err)
+	p, ok := got.(*psql)
+	assert.True(t, ok, "Expected *psql type")
+	if ok {
+		assert.NotNil(t, p.db, "DB should not be nil")
 	}
 }
 

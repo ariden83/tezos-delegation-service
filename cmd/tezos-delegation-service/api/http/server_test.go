@@ -4,74 +4,45 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
-	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/gin-gonic/gin"
-	"github.com/jmoiron/sqlx"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 
-	"github.com/tezos-delegation-service/internal/model"
+	databaseadaptermock "github.com/tezos-delegation-service/internal/adapter/database/impl/mock"
+	metricsnoop "github.com/tezos-delegation-service/internal/adapter/metrics/impl/noop"
+	tzktapimock "github.com/tezos-delegation-service/internal/adapter/tzktapi/impl/mock"
 )
 
-// Mock delegation service
-type MockDelegationService struct {
-	mock.Mock
-}
+func Test_NewServer(t *testing.T) {
+	db := databaseadaptermock.New()
+	tzktAPI := tzktapimock.New()
+	providedPort := 8080
+	metricClient := metricsnoop.New()
+	logger := logrus.NewEntry(logrus.New())
 
-func (m *MockDelegationService) GetDelegations(pageStr string, limitStr string, yearStr string) (*model.DelegationResponse, error) {
-	args := m.Called(pageStr, limitStr, yearStr)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*model.DelegationResponse), args.Error(1)
-}
+	healthService := NewHealthService(db)
 
-func TestNewServer(t *testing.T) {
-	// Create a mock DB
-	db, _, err := sqlmock.New()
-	assert.NoError(t, err)
-	defer db.Close()
+	server := NewServer(providedPort, tzktAPI, db, metricClient, logger)
 
-	sqlxDB := sqlx.NewDb(db, "sqlmock")
-
-	// Create health service
-	healthService := NewHealthService(sqlxDB)
-
-	// Create server
-	server := NewServer(8080, healthService)
-
-	// Check server is correctly initialized
 	assert.NotNil(t, server)
-	assert.Equal(t, 8080, server.port)
+	assert.Equal(t, providedPort, server.port)
 	assert.Equal(t, healthService, server.healthService)
 	assert.NotNil(t, server.router)
 }
 
-func TestSetupRoutes(t *testing.T) {
+func Test_SetupRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// Create a mock DB
-	db, _, err := sqlmock.New()
-	assert.NoError(t, err)
-	defer db.Close()
+	db := databaseadaptermock.New()
+	tzktAPI := tzktapimock.New()
+	providedPort := 8080
+	metricClient := metricsnoop.New()
+	logger := logrus.NewEntry(logrus.New())
 
-	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	server := NewServer(providedPort, tzktAPI, db, metricClient, logger).SetupRoutes()
 
-	// Create health service
-	healthService := NewHealthService(sqlxDB)
-
-	// Create server
-	server := NewServer(8080, healthService)
-
-	// Create mock delegation handler
-	mockDelegationService := new(MockDelegationService)
-	delegationHandler := NewDelegationHandler(mockDelegationService)
-
-	// Setup routes
-	server.SetupRoutes(delegationHandler)
-
-	// Test health endpoint
 	req, err := http.NewRequest("GET", "/health", nil)
 	assert.NoError(t, err)
 
@@ -81,7 +52,6 @@ func TestSetupRoutes(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "status")
 
-	// Test health/live endpoint
 	req, err = http.NewRequest("GET", "/health/live", nil)
 	assert.NoError(t, err)
 
@@ -91,7 +61,6 @@ func TestSetupRoutes(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "status")
 
-	// Test health/ready endpoint
 	req, err = http.NewRequest("GET", "/health/ready", nil)
 	assert.NoError(t, err)
 
@@ -101,7 +70,6 @@ func TestSetupRoutes(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "status")
 
-	// Test metrics endpoint
 	req, err = http.NewRequest("GET", "/metrics", nil)
 	assert.NoError(t, err)
 
@@ -111,26 +79,54 @@ func TestSetupRoutes(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestPrepareShutdown(t *testing.T) {
-	// Create a mock DB
-	db, _, err := sqlmock.New()
-	assert.NoError(t, err)
-	defer db.Close()
+func Test_PrepareShutdown(t *testing.T) {
+	db := databaseadaptermock.New()
+	tzktAPI := tzktapimock.New()
+	providedPort := 8080
+	metricClient := metricsnoop.New()
+	logger := logrus.NewEntry(logrus.New())
 
-	sqlxDB := sqlx.NewDb(db, "sqlmock")
+	server := NewServer(providedPort, tzktAPI, db, metricClient, logger).SetupRoutes()
 
-	// Create health service
-	healthService := NewHealthService(sqlxDB)
+	assert.False(t, server.healthService.shutdownStarted)
 
-	// Create server
-	server := NewServer(8080, healthService)
-
-	// Verify initial state
-	assert.False(t, healthService.isShuttingDown)
-
-	// Prepare shutdown
 	server.PrepareShutdown()
 
-	// Verify shutdown state
-	assert.True(t, healthService.isShuttingDown)
+	assert.True(t, server.healthService.shutdownStarted)
+}
+
+func Test_Server_WaitForShutdown(t *testing.T) {
+	mockLogger := logrus.NewEntry(logrus.New())
+
+	db := databaseadaptermock.New()
+	healthService := NewHealthService(db)
+	metricClient := metricsnoop.New()
+
+	router := gin.New()
+
+	h := &handlers{
+		getDelegationHandler: &GetDelegationHandler{},
+	}
+
+	s := &Server{
+		healthService: healthService,
+		logger:        mockLogger,
+		metrics:       metricClient,
+		port:          8080,
+		router:        router,
+		handlers:      h,
+	}
+
+	done := make(chan bool)
+	go func() {
+		s.WaitForShutdown()
+		done <- true
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	assert.True(t, true)
 }

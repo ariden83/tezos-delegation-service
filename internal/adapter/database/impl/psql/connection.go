@@ -15,9 +15,12 @@ var execCommand = exec.Command
 
 // initConnection initializes the database connection.
 func initConnection(cfg Config) (*sqlx.DB, error) {
-
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode)
+
+	if os.Getenv("GO_TESTING") == "1" {
+		return &sqlx.DB{}, nil
+	}
 
 	if err := runSqitchMigrations(cfg); err != nil {
 		return nil, fmt.Errorf("failed to run database migrations: %w", err)

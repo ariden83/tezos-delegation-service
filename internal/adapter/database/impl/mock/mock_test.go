@@ -21,6 +21,8 @@ func Test_Mock_Close(t *testing.T) {
 			name: "nominal case",
 			mock: func() *Mock {
 				m := New()
+				m.On("Close").
+					Return(nil)
 				return m
 			}(),
 			wantErr: false,
@@ -142,7 +144,7 @@ func Test_Mock_GetDelegations(t *testing.T) {
 			mock: func() *Mock {
 				m := New()
 				m.On("GetDelegations", mock.Anything, 1, 10, 2023).
-					Return(nil, 0, errors.New("get delegations error"))
+					Return([]model.Delegation(nil), 0, errors.New("get delegations error"))
 				return m
 			}(),
 			args: args{

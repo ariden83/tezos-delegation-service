@@ -2,11 +2,8 @@ package factory
 
 import (
 	"fmt"
-	"testing"
 
 	"github.com/tezos-delegation-service/internal/adapter/database"
-	// "github.com/tezos-delegation-service/internal/adapter/database/impl/memory"
-	"github.com/tezos-delegation-service/internal/adapter/database/impl/mock"
 	"github.com/tezos-delegation-service/internal/adapter/database/impl/psql"
 	"github.com/tezos-delegation-service/internal/adapter/database/proxy"
 	"github.com/tezos-delegation-service/internal/adapter/metrics"
@@ -30,10 +27,8 @@ func (i Implementation) String() string {
 
 // Config represents the database configuration.
 type Config struct {
-	Driver string
-	DSN    string
-	Impl   Implementation `mapstructure:"impl"`
-	psql   *psql.Config   `mapstructure:"psql"`
+	Impl Implementation `mapstructure:"impl"`
+	PSQL *psql.Config   `mapstructure:"psql"`
 }
 
 // New creates a new repository factory.
@@ -45,10 +40,10 @@ func New(cfg Config, metricsClient metrics.Adapter) (database.Adapter, error) {
 
 	switch cfg.Impl {
 	case ImplPSQL:
-		if cfg.psql == nil {
-			return nil, fmt.Errorf("psql config is required for SQL implementation")
+		if cfg.PSQL == nil {
+			return nil, fmt.Errorf("PSQL config is required for SQL implementation")
 		}
-		adapter, err = psql.New(*cfg.psql)
+		adapter, err = psql.New(*cfg.PSQL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create SQL repository: %w", err)
 		}
@@ -59,9 +54,4 @@ func New(cfg Config, metricsClient metrics.Adapter) (database.Adapter, error) {
 	}
 
 	return proxy.New(adapter, cfg.Impl.String(), metricsClient), nil
-}
-
-// NewMock returns a new filestorage mock adapter.
-func NewMock(t *testing.T) *mock.Mock {
-	return mock.New()
 }

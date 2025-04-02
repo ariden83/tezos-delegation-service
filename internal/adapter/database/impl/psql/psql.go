@@ -15,13 +15,13 @@ import (
 
 // Config represents database configuration.
 type Config struct {
-	Driver   string
-	Host     string
-	Port     int
-	User     string
-	Password string
-	DBName   string
-	SSLMode  string
+	Driver   string `mapstructure:"driver"`
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	User     string `mapstructure:"user"`
+	Password string `mapstructure:"password"`
+	DBName   string `mapstructure:"dbname"`
+	SSLMode  string `mapstructure:"sslmode"`
 }
 
 // psql implements DelegationRepository using SQL database.
