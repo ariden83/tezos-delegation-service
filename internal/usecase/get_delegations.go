@@ -118,8 +118,8 @@ func (uc *getDelegations) parseLimit(limitStr string) (uint16, error) {
 		if l <= 0 {
 			return 0, errors.New("limit must be a positive number")
 		}
-		if l > int(^uint16(0)) {
-			return 0, errors.New("limit exceeds maximum allowed value of 65535")
+		if l > 500 {
+			return 0, errors.New("limit exceeds maximum allowed value of 500")
 		}
 		limit = uint16(l)
 	}
