@@ -12,7 +12,6 @@ logging:
 database:
   impl: psql
   psql:
-    db_migrate_file: "/app/scripts/db_migrate.sh"
     driver: postgres
     host: db
     port: 5432
@@ -26,6 +25,9 @@ tzktapi:
   api:
     url: https://api.tzkt.io
   polling_interval: 60
+
+metrics:
+  impl: prometheus
 
 pagination:
   limit: 50

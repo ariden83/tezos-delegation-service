@@ -1,10 +1,10 @@
-version: '3.8'
-
 services:
   app:
+    container_name: tezos-delegation-service-app
+    image: tezos-delegation-service-app
     build:
       context: .
-      dockerfile: Dockerfile.multistage
+      dockerfile: Dockerfile
     ports:
       - "8080:8080"
     depends_on:
@@ -16,11 +16,9 @@ services:
       - DB_NAME=tezos_delegations
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-    restart: unless-stopped
+    restart: on-failure
     volumes:
       - ./config:/app/config
-      - ./sqitch_pg:/app/sqitch_pg
-      - ./scripts:/app/scripts
 
   swagger-ui:
     image: swaggerapi/swagger-ui:latest

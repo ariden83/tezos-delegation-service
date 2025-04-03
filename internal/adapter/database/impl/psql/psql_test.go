@@ -123,7 +123,8 @@ func Test_psql_CountDelegations(t *testing.T) {
 				endDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
 
 				rows := sqlmock.NewRows([]string{"count"}).AddRow(10)
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM delegations WHERE timestamp >= \\$1 AND timestamp < \\$2").
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM "+TableDelegations+
+					" WHERE timestamp >= \\$1 AND timestamp < \\$2").
 					WithArgs(startDate, endDate).
 					WillReturnRows(rows)
 			},
@@ -138,7 +139,7 @@ func Test_psql_CountDelegations(t *testing.T) {
 			wantErr: assert.NoError,
 			setup: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{"count"}).AddRow(5)
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM delegations").
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM " + TableDelegations).
 					WillReturnRows(rows)
 			},
 		},
@@ -154,7 +155,7 @@ func Test_psql_CountDelegations(t *testing.T) {
 				startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
 				endDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
 
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM delegations WHERE timestamp >= \\$1 AND timestamp < \\$2").
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM "+TableDelegations+" WHERE timestamp >= \\$1 AND timestamp < \\$2").
 					WithArgs(startDate, endDate).
 					WillReturnError(fmt.Errorf("database error"))
 			},
@@ -171,7 +172,7 @@ func Test_psql_CountDelegations(t *testing.T) {
 				startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
 				endDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
 
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM delegations WHERE timestamp >= \\$1 AND timestamp < \\$2").
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM "+TableDelegations+" WHERE timestamp >= \\$1 AND timestamp < \\$2").
 					WithArgs(startDate, endDate).
 					WillReturnError(context.Canceled)
 			},
@@ -234,9 +235,11 @@ func Test_psql_GetDelegations(t *testing.T) {
 				rows := sqlmock.NewRows([]string{"id", "delegator", "timestamp", "amount", "level", "created_at"}).
 					AddRow(1, "delegator1", int64(1672531199), float64(1000), int64(1), createdAt)
 
-				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM delegations WHERE id <= \\$1 ORDER BY timestamp DESC LIMIT \\$2 OFFSET \\$3").
+				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM "+
+					TableDelegations+
+					" WHERE id <= \\$1 ORDER BY timestamp DESC LIMIT \\$2 OFFSET \\$3").
 					WithArgs(int64(10), 2, 2).WillReturnRows(rows)
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM delegations").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM " + TableDelegations).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 				return sqlx.NewDb(db, "sqlmock")
 			}(),
@@ -269,9 +272,12 @@ func Test_psql_GetDelegations(t *testing.T) {
 				rows := sqlmock.NewRows([]string{"id", "delegator", "timestamp", "amount", "level", "created_at"}).
 					AddRow(1, "delegator1", int64(1672531199), float64(1000), int64(1), createdAt)
 
-				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM delegations WHERE timestamp >= \\$1 AND timestamp < \\$2 ORDER BY timestamp DESC LIMIT \\$3 OFFSET \\$4").
+				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM "+
+					TableDelegations+
+					" WHERE timestamp >= \\$1 AND timestamp < \\$2 ORDER BY timestamp DESC LIMIT \\$3 OFFSET \\$4").
 					WithArgs(startDate, endDate, 2, 2).WillReturnRows(rows)
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM delegations WHERE timestamp >= \\$1 AND timestamp < \\$2").
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM "+TableDelegations+
+					" WHERE timestamp >= \\$1 AND timestamp < \\$2").
 					WithArgs(startDate, endDate).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 				return sqlx.NewDb(db, "sqlmock")
@@ -306,9 +312,10 @@ func Test_psql_GetDelegations(t *testing.T) {
 					AddRow(1, "delegator1", int64(1672531199), float64(1000), int64(1), createdAt).
 					AddRow(2, "delegator2", int64(1672531200), float64(2000), int64(2), createdAt)
 
-				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM delegations ORDER BY timestamp DESC LIMIT \\$1 OFFSET \\$2").
+				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM "+
+					TableDelegations+" ORDER BY timestamp DESC LIMIT \\$1 OFFSET \\$2").
 					WithArgs(2, 0).WillReturnRows(rows)
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM delegations").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM " + TableDelegations).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 
 				return sqlx.NewDb(db, "sqlmock")
 			}(),
@@ -337,7 +344,9 @@ func Test_psql_GetDelegations(t *testing.T) {
 			name: "Error case - context canceled",
 			db: func() *sqlx.DB {
 				db, mock, _ := sqlmock.New()
-				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM delegations ORDER BY timestamp DESC LIMIT \\$1 OFFSET \\$2").
+				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM "+
+					TableDelegations+
+					" ORDER BY timestamp DESC LIMIT \\$1 OFFSET \\$2").
 					WithArgs(2, 0).WillReturnError(context.Canceled)
 				return sqlx.NewDb(db, "sqlmock")
 			}(),
@@ -387,7 +396,7 @@ func Test_psql_GetHighestBlockLevel(t *testing.T) {
 			name: "Nominal case",
 			db: func() *sqlx.DB {
 				db, mock, _ := sqlmock.New()
-				mock.ExpectQuery("SELECT COALESCE\\(MAX\\(level\\), 0\\) FROM delegations").
+				mock.ExpectQuery("SELECT COALESCE\\(MAX\\(level\\), 0\\) FROM " + TableDelegations).
 					WillReturnRows(sqlmock.NewRows([]string{"level"}).AddRow(100))
 				return sqlx.NewDb(db, "sqlmock")
 			}(),
@@ -399,7 +408,7 @@ func Test_psql_GetHighestBlockLevel(t *testing.T) {
 			name: "Error case - query error",
 			db: func() *sqlx.DB {
 				db, mock, _ := sqlmock.New()
-				mock.ExpectQuery("SELECT COALESCE\\(MAX\\(level\\), 0\\) FROM delegations").
+				mock.ExpectQuery("SELECT COALESCE\\(MAX\\(level\\), 0\\) FROM " + TableDelegations).
 					WillReturnError(fmt.Errorf("query error"))
 				return sqlx.NewDb(db, "sqlmock")
 			}(),
@@ -411,7 +420,7 @@ func Test_psql_GetHighestBlockLevel(t *testing.T) {
 			name: "Error case - context canceled",
 			db: func() *sqlx.DB {
 				db, mock, _ := sqlmock.New()
-				mock.ExpectQuery("SELECT COALESCE\\(MAX\\(level\\), 0\\) FROM delegations").
+				mock.ExpectQuery("SELECT COALESCE\\(MAX\\(level\\), 0\\) FROM " + TableDelegations).
 					WillReturnError(context.Canceled)
 				return sqlx.NewDb(db, "sqlmock")
 			}(),
@@ -453,7 +462,8 @@ func Test_psql_GetLatestDelegation(t *testing.T) {
 				createdAt := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
 				rows := sqlmock.NewRows([]string{"id", "delegator", "timestamp", "amount", "level", "created_at"}).
 					AddRow(1, "delegator1", int64(1672531199), float64(1000), int64(1), createdAt)
-				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM delegations ORDER BY level DESC LIMIT 1").
+				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM " +
+					TableDelegations + " ORDER BY level DESC LIMIT 1").
 					WillReturnRows(rows)
 				return sqlx.NewDb(db, "sqlmock")
 			}(),
@@ -472,7 +482,8 @@ func Test_psql_GetLatestDelegation(t *testing.T) {
 			name: "Error case - query error",
 			db: func() *sqlx.DB {
 				db, mock, _ := sqlmock.New()
-				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM delegations ORDER BY level DESC LIMIT 1").
+				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM " +
+					TableDelegations + " ORDER BY level DESC LIMIT 1").
 					WillReturnError(fmt.Errorf("query error"))
 				return sqlx.NewDb(db, "sqlmock")
 			}(),
@@ -484,7 +495,8 @@ func Test_psql_GetLatestDelegation(t *testing.T) {
 			name: "Error case - context canceled",
 			db: func() *sqlx.DB {
 				db, mock, _ := sqlmock.New()
-				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM delegations ORDER BY level DESC LIMIT 1").
+				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM " +
+					TableDelegations + " ORDER BY level DESC LIMIT 1").
 					WillReturnError(context.Canceled)
 				return sqlx.NewDb(db, "sqlmock")
 			}(),
@@ -552,7 +564,7 @@ func Test_psql_SaveDelegation(t *testing.T) {
 			name: "Nominal case",
 			db: func() *sqlx.DB {
 				db, mock, _ := sqlmock.New()
-				mock.ExpectExec("INSERT INTO delegations").
+				mock.ExpectExec("INSERT INTO "+TableDelegations).
 					WithArgs("delegator1", int64(1672531199), float64(1000), int64(1)).
 					WillReturnResult(sqlmock.NewResult(1, 1))
 				return sqlx.NewDb(db, "sqlmock")
@@ -572,7 +584,7 @@ func Test_psql_SaveDelegation(t *testing.T) {
 			name: "Error case - context canceled",
 			db: func() *sqlx.DB {
 				db, mock, _ := sqlmock.New()
-				mock.ExpectExec("INSERT INTO delegations").
+				mock.ExpectExec("INSERT INTO "+TableDelegations).
 					WithArgs("delegator1", 1672531199, 1000, 1).
 					WillReturnError(context.Canceled)
 				return sqlx.NewDb(db, "sqlmock")
@@ -596,7 +608,7 @@ func Test_psql_SaveDelegation(t *testing.T) {
 			name: "Error case - database error",
 			db: func() *sqlx.DB {
 				db, mock, _ := sqlmock.New()
-				mock.ExpectExec("INSERT INTO delegations").
+				mock.ExpectExec("INSERT INTO "+TableDelegations).
 					WithArgs("delegator1", 1672531199, 1000, 1).
 					WillReturnError(fmt.Errorf("database error"))
 				return sqlx.NewDb(db, "sqlmock")
@@ -618,7 +630,8 @@ func Test_psql_SaveDelegation(t *testing.T) {
 			p := &psql{
 				db: tt.db,
 			}
-			tt.wantErr(t, p.SaveDelegation(tt.args.ctx, tt.args.delegation), fmt.Sprintf("SaveDelegation(%v, %v)", tt.args.ctx, tt.args.delegation))
+			tt.wantErr(t, p.SaveDelegation(tt.args.ctx, tt.args.delegation),
+				fmt.Sprintf("SaveDelegation(%v, %v)", tt.args.ctx, tt.args.delegation))
 		})
 	}
 }
@@ -639,10 +652,10 @@ func Test_psql_SaveDelegations(t *testing.T) {
 			db: func() *sqlx.DB {
 				db, mock, _ := sqlmock.New()
 				mock.ExpectBegin()
-				mock.ExpectExec("INSERT INTO delegations").
+				mock.ExpectExec("INSERT INTO "+TableDelegations).
 					WithArgs("delegator1", int64(1672531199), float64(1000), int64(1)).
 					WillReturnResult(sqlmock.NewResult(1, 1))
-				mock.ExpectExec("INSERT INTO delegations").
+				mock.ExpectExec("INSERT INTO "+TableDelegations).
 					WithArgs("delegator2", int64(1672531200), float64(2000), int64(2)).
 					WillReturnResult(sqlmock.NewResult(2, 1))
 				mock.ExpectCommit()
@@ -662,7 +675,7 @@ func Test_psql_SaveDelegations(t *testing.T) {
 			db: func() *sqlx.DB {
 				db, mock, _ := sqlmock.New()
 				mock.ExpectBegin()
-				mock.ExpectExec("INSERT INTO delegations").
+				mock.ExpectExec("INSERT INTO "+TableDelegations).
 					WithArgs("delegator1", 1672531199, 1000, 1).
 					WillReturnError(context.Canceled)
 				mock.ExpectRollback()
@@ -685,7 +698,7 @@ func Test_psql_SaveDelegations(t *testing.T) {
 			db: func() *sqlx.DB {
 				db, mock, _ := sqlmock.New()
 				mock.ExpectBegin()
-				mock.ExpectExec("INSERT INTO delegations").
+				mock.ExpectExec("INSERT INTO "+TableDelegations).
 					WithArgs("delegator1", 1672531199, 1000, 1).
 					WillReturnError(fmt.Errorf("database error"))
 				mock.ExpectRollback()
@@ -705,7 +718,8 @@ func Test_psql_SaveDelegations(t *testing.T) {
 			p := &psql{
 				db: tt.db,
 			}
-			tt.wantErr(t, p.SaveDelegations(tt.args.ctx, tt.args.delegations), fmt.Sprintf("SaveDelegations(%v, %v)", tt.args.ctx, tt.args.delegations))
+			tt.wantErr(t, p.SaveDelegations(tt.args.ctx, tt.args.delegations),
+				fmt.Sprintf("SaveDelegations(%v, %v)", tt.args.ctx, tt.args.delegations))
 		})
 	}
 }

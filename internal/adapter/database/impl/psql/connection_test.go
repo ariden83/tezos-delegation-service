@@ -1,14 +1,5 @@
 package psql
 
-import (
-	"fmt"
-	"os"
-	"os/exec"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-)
-
 /* func Test_initConnection(t *testing.T) {
 
 	origExecCommand := execCommand
@@ -112,7 +103,7 @@ import (
 			assert.Equalf(t, tt.want, got, "initConnection(%v)", cfg)
 		})
 	}
-} */
+}
 
 func Test_runSqitchMigrations(t *testing.T) {
 	if testing.Short() {
@@ -145,3 +136,4 @@ func Test_runSqitchMigrations(t *testing.T) {
 
 	assert.NoError(t, runSqitchMigrations(config), fmt.Sprintf("runSqitchMigrations(%v)", config))
 }
+*/
