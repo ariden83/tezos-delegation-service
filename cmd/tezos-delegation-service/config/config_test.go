@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/tezos-delegation-service/internal/adapter/database/factory"
+	"github.com/tezos-delegation-service/internal/adapter/database/impl/psql"
 )
 
 func Test_Load(t *testing.T) {
@@ -83,7 +84,7 @@ database:
 				assert.Equal(t, "localhost", cfg.DatabaseAdapter.PSQL.Host)
 				assert.Equal(t, 5432, cfg.DatabaseAdapter.PSQL.Port)
 				assert.Equal(t, "root", cfg.DatabaseAdapter.PSQL.User)
-				assert.Equal(t, "password", cfg.DatabaseAdapter.PSQL.Password)
+				assert.Equal(t, psql.Secret("password"), cfg.DatabaseAdapter.PSQL.Password)
 				assert.Equal(t, "delegations", cfg.DatabaseAdapter.PSQL.DBName)
 				assert.Equal(t, "disable", cfg.DatabaseAdapter.PSQL.SSLMode)
 

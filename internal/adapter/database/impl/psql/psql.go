@@ -16,13 +16,38 @@ import (
 
 // Config represents database configuration.
 type Config struct {
-	Driver   string `mapstructure:"driver"`
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	User     string `mapstructure:"user"`
-	Password string `mapstructure:"password"`
-	DBName   string `mapstructure:"dbname"`
-	SSLMode  string `mapstructure:"sslmode"`
+	DBMigrateFile string `mapstructure:"db_migrate_file"`
+	Driver        string `mapstructure:"driver"`
+	Host          string `mapstructure:"host"`
+	Port          int    `mapstructure:"port"`
+	User          string `mapstructure:"user"`
+	Password      Secret `mapstructure:"password"`
+	DBName        string `mapstructure:"dbname"`
+	SSLMode       string `mapstructure:"sslmode"`
+}
+
+type text interface {
+	~[]byte | ~string
+}
+
+func conceal[T text](s T) string {
+	if len(s) == 0 {
+		return ""
+	}
+	return "******"
+}
+
+// Secret allows to avoid displaying secret string values in logs for instance.
+type Secret string
+
+// String implements Stringer.
+func (s Secret) String() string {
+	return conceal(s)
+}
+
+// MarshalText implements the encoding.TextMarshaler interface.
+func (s Secret) MarshalText() (text []byte, err error) {
+	return []byte(s.String()), nil
 }
 
 // psql implements DelegationRepository using SQL database.

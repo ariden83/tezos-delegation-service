@@ -23,6 +23,8 @@ func main() {
 	l := logger.Log.WithField("component", "tezos-delegation-service")
 	l.Info("Starting Tezos Delegation API Service...")
 
+	l.Infof("Service configuration: %+v", cfg)
+
 	metricsClient, err := metricsfactory.New(cfg.Metrics)
 	if err != nil {
 		l.Fatalf("Failed to create metrics client: %v", err)
@@ -44,11 +46,12 @@ func main() {
 	}
 
 	server := http.NewServer(cfg.Server.Port, cfg.Pagination.Limit, dbAdapter, metricsClient, l).SetupRoutes()
-	go (poller.New(tzktAPIAdapter, dbAdapter, cfg.TZKTApiAdapter.PollingInterval, metricsClient, l)).Run(context.Background())
 
-	server.WaitForShutdown()
+	go (poller.New(tzktAPIAdapter, dbAdapter, cfg.TZKTApiAdapter.PollingInterval, metricsClient, l)).Run(context.Background())
 
 	if err := server.Start(); err != nil {
 		l.Fatalf("Failed to start server: %v", err)
 	}
+
+	server.WaitForShutdown()
 }

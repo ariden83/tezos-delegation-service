@@ -1,8 +1,6 @@
 module github.com/tezos-delegation-service
 
-go 1.23.0
-
-toolchain go1.24.1
+go 1.20
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2

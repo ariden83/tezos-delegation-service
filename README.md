@@ -1,4 +1,4 @@
-# Tezos Delegation API
+# Tezos Delegation Service
 
 A Go service that collects and exposes delegations made on the Tezos protocol through a RESTful API, utilizing data from the TzKT API.
 
@@ -7,28 +7,61 @@ A Go service that collects and exposes delegations made on the Tezos protocol th
 - Continuously polls and stores Tezos delegations from TzKT API
 - Exposes delegation data through a REST API
 - Supports filtering by year and pagination
+- Includes a Swagger UI for API testing and documentation
 
 ## Requirements
 
-- Go 1.18+
-- PostgreSQL
-- [Sqitch](https://sqitch.org/) (for database migrations)
+- Docker and Docker Compose
+- Git
 
-## Setup
+## Quick Start with Docker
 
-### Local Setup
+The easiest way to get started is using Docker Compose:
 
 1. Clone this repository
-2. Install Sqitch (for database migrations)
-3. Run migrations: `make db-migrate`
-4. Configure the application in `config/config.yaml`
+   ```bash
+   git clone https://github.com/tezos-delegation-service.git
+   cd tezos-delegation-service
+   ```
+
+2. Build and start all services
+   ```bash
+   make docker-compose-up
+   ```
+
+3. Access the services:
+   - **REST API**: http://localhost:8080
+   - **Swagger UI**: http://localhost:8081
+   - **PostgreSQL**: localhost:5432 (username: postgres, password: postgres, database: tezos_delegations)
+
+4. To stop all services:
+   ```bash
+   make docker-compose-down
+   ```
+
+### Using the Swagger UI for API Testing
+
+After starting the services with `make docker-compose-up`, you can:
+
+1. Open http://localhost:8081 in your web browser
+2. The Swagger UI will display all available API endpoints with documentation
+3. Try out the endpoints directly from the UI:
+   - Click on an endpoint (e.g., `/xtz/delegations`)
+   - Click "Try it out"
+   - Fill in any parameters
+   - Click "Execute"
+   - View the response
+
+## Manual Setup (without Docker)
+
+If you prefer to run the service directly:
+
+1. Ensure you have Go 1.20+ and PostgreSQL installed
+2. Configure the application in `config/config.yaml`
+3. Install PostgreSQL client for migrations
+4. Run migrations: `make db-migrate`
 5. Build the application: `make build`
 6. Run the application: `make run`
-
-### Docker Setup
-
-1. Build and run with docker-compose: `docker-compose up -d`
-2. Access the API at http://localhost:8080
 
 ### Kubernetes Setup
 
@@ -44,18 +77,23 @@ See the [Kubernetes README](k8s/README.md) for detailed instructions.
 
 ```
 .
-├── cmd/                  # Application entry points
-│   └── tezos-delegation-api/ # Main application
-├── config/               # Configuration files
-├── data/                 # Data storage (local development)
-├── internal/             # Private application code
-│   ├── adapter/          # External services adapters
-│   ├── model/            # Domain models
-│   └── usecase/          # Business logic
-├── k8s/                  # Kubernetes configuration
-├── scripts/              # Utility scripts
-├── specs/                # API specifications (OpenAPI)
-└── sqitch_pg/            # Database migrations (PostgreSQL)
+├── cmd/                         # Application entry points
+│   └── tezos-delegation-service/  # Main application
+├── config/                      # Configuration files
+├── data/                        # Data storage (local development)
+├── internal/                    # Private application code
+│   ├── adapter/                 # External services adapters
+│   │   ├── database/            # Database adapters
+│   │   ├── metrics/             # Metrics adapters
+│   │   └── tzktapi/             # TzKT API adapters
+│   ├── model/                   # Domain models
+│   └── usecase/                 # Business logic
+├── k8s/                         # Kubernetes configuration
+├── pkg/                         # Public packages
+│   └── logger/                  # Logging utilities
+├── scripts/                     # Utility scripts
+├── sqitch_pg/                   # Database migrations (PostgreSQL)
+└── docker-compose.yml           # Docker Compose configuration
 ```
 
 ## API

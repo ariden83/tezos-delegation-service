@@ -40,7 +40,7 @@ func initConnection(cfg Config) (*sqlx.DB, error) {
 
 // runSqitchMigrations runs the database migrations using sqitch.
 func runSqitchMigrations(cfg Config) error {
-	cmd := execCommand("../../../../../scripts/db_migrate.sh")
+	cmd := execCommand(cfg.DBMigrateFile)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

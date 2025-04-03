@@ -46,6 +46,18 @@ paths:
           required: false
           schema:
             type: string
+        - name: X-Max-Delegation-ID
+          in: header
+          description: ID maximum de délégation pour filtrage
+          required: false
+          schema:
+            type: string
+        - name: X-Request-ID
+          in: header
+          description: Identifiant de requête pour le traçage
+          required: false
+          schema:
+            type: string
       responses:
         '200':
           description: Liste des délégations avec informations de pagination
@@ -91,6 +103,11 @@ paths:
               description: Identifiant unique pour cette requéte
               schema:
                 type: string
+            X-Max-Delegation-ID:
+              description: Identifiant maximum de délégation dans le jeu de données actuel
+              schema:
+                type: string
+                example: "12345"
           content:
             application/json:
               schema:
@@ -107,6 +124,32 @@ paths:
               description: Identifiant unique pour la version actuelle des données
               schema:
                 type: string
+                example: '"1502sdf"'
+            X-Page-Current:
+              description: Numéro de page actuelle
+              schema:
+                type: string
+            X-Page-Per-Page:
+              description: Nombre d'éléments par page
+              schema:
+                type: string
+            X-Page-Prev:
+              description: Numéro de la page précédente (si disponible)
+              schema:
+                type: string
+            X-Page-Next:
+              description: Numéro de la page suivante (si disponible)
+              schema:
+                type: string
+            X-Request-ID:
+              description: Identifiant unique pour cette requéte
+              schema:
+                type: string
+            X-Max-Delegation-ID:
+              description: Identifiant maximum de délégation dans le jeu de données actuel
+              schema:
+                type: string
+                example: "12345"
         '500':
           description: Erreur interne du serveur
           content:

@@ -11,9 +11,16 @@ services:
       - db
     environment:
       - TZ=UTC
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=tezos_delegations
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
     restart: unless-stopped
     volumes:
       - ./config:/app/config
+      - ./sqitch_pg:/app/sqitch_pg
+      - ./scripts:/app/scripts
 
   swagger-ui:
     image: swaggerapi/swagger-ui:latest

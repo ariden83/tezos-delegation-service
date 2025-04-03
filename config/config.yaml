@@ -12,11 +12,13 @@ logging:
 database:
   impl: psql
   psql:
+    db_migrate_file: "/app/scripts/db_migrate.sh"
+    driver: postgres
     host: db
     port: 5432
     user: "postgres"
     password: "postgres"
-    dbname: delegations
+    dbname: "tezos_delegations"
     sslmode: disable
 
 tzktapi:
@@ -29,4 +31,4 @@ pagination:
   limit: 50
 
 server:
-  port: 9090
+  port: 8080

@@ -133,13 +133,14 @@ func Test_runSqitchMigrations(t *testing.T) {
 	}
 
 	config := Config{
-		Driver:   "sqlmock",
-		Host:     "localhost",
-		Port:     5432,
-		User:     "testuser",
-		Password: "testpass",
-		DBName:   "testdb",
-		SSLMode:  "disable",
+		DBMigrateFile: "../../../../../scripts/db_migrate.sh",
+		Driver:        "sqlmock",
+		Host:          "localhost",
+		Port:          5432,
+		User:          "testuser",
+		Password:      "testpass",
+		DBName:        "testdb",
+		SSLMode:       "disable",
 	}
 
 	assert.NoError(t, runSqitchMigrations(config), fmt.Sprintf("runSqitchMigrations(%v)", config))
