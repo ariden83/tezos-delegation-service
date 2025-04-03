@@ -20,14 +20,14 @@ type Adapter interface {
 	// GetLatestDelegation returns the latest delegation from the repository
 	GetLatestDelegation(ctx context.Context) (*model.Delegation, error)
 
-	// GetDelegations returns delegations with pagination and optional year filter
-	GetDelegations(ctx context.Context, page int, limit int, year int) ([]model.Delegation, int, error)
+	// GetDelegations returns delegations with pagination and optional year and maxDelegationID filters
+	GetDelegations(ctx context.Context, page uint32, limit, year uint16, maxDelegationID uint64) ([]model.Delegation, int, error)
 
 	// CountDelegations returns the total count of delegations with optional year filter
-	CountDelegations(ctx context.Context, year int) (int, error)
+	CountDelegations(ctx context.Context, year uint16) (int, error)
 
 	// GetHighestBlockLevel returns the highest block level in the repository.
-	GetHighestBlockLevel(ctx context.Context) (int64, error)
+	GetHighestBlockLevel(ctx context.Context) (uint64, error)
 
 	// Close closes the database connection.
 	Close() error

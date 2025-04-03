@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"github.com/tezos-delegation-service/cmd/tezos-delegation-service/api/http"
@@ -42,8 +43,8 @@ func main() {
 		l.Fatalf("Failed to create TzKT API factory: %v", err)
 	}
 
-	server := http.NewServer(cfg.Server.Port, tzktAPIAdapter, dbAdapter, metricsClient, l).SetupRoutes()
-	go (poller.New(tzktAPIAdapter, dbAdapter, cfg.TZKTApiAdapter.PollingInterval, metricsClient, l)).Run()
+	server := http.NewServer(cfg.Server.Port, cfg.Pagination.Limit, dbAdapter, metricsClient, l).SetupRoutes()
+	go (poller.New(tzktAPIAdapter, dbAdapter, cfg.TZKTApiAdapter.PollingInterval, metricsClient, l)).Run(context.Background())
 
 	server.WaitForShutdown()
 

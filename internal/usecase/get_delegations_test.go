@@ -9,19 +9,20 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
+	"github.com/tezos-delegation-service/internal/adapter/database"
+	dbmock "github.com/tezos-delegation-service/internal/adapter/database/impl/mock"
 	"github.com/tezos-delegation-service/internal/adapter/metrics"
 	metricsnoop "github.com/tezos-delegation-service/internal/adapter/metrics/impl/noop"
-	"github.com/tezos-delegation-service/internal/adapter/tzktapi"
-	tzktmock "github.com/tezos-delegation-service/internal/adapter/tzktapi/impl/mock"
 	"github.com/tezos-delegation-service/internal/model"
 )
 
 func Test_NewGetDelegationsFunc(t *testing.T) {
-	providedTZKTAPI := tzktmock.New()
+	providedDBAdapter := dbmock.New()
 	providedMetricsClient := metricsnoop.New()
 
 	type args struct {
-		adapter       tzktapi.Adapter
+		adapter       database.Adapter
+		defaultLimit  uint16
 		metricsClient metrics.Adapter
 	}
 	tests := []struct {
@@ -32,7 +33,8 @@ func Test_NewGetDelegationsFunc(t *testing.T) {
 		{
 			name: "Nominal case",
 			args: args{
-				adapter:       providedTZKTAPI,
+				adapter:       providedDBAdapter,
+				defaultLimit:  50,
 				metricsClient: providedMetricsClient,
 			},
 			valid: true,
@@ -41,6 +43,7 @@ func Test_NewGetDelegationsFunc(t *testing.T) {
 			name: "Nil adapter",
 			args: args{
 				adapter:       nil,
+				defaultLimit:  50,
 				metricsClient: providedMetricsClient,
 			},
 			valid: true,
@@ -48,7 +51,8 @@ func Test_NewGetDelegationsFunc(t *testing.T) {
 		{
 			name: "Nil metrics client",
 			args: args{
-				adapter:       providedTZKTAPI,
+				adapter:       providedDBAdapter,
+				defaultLimit:  50,
 				metricsClient: nil,
 			},
 			valid: true,
@@ -56,7 +60,7 @@ func Test_NewGetDelegationsFunc(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := NewGetDelegationsFunc(tt.args.adapter, tt.args.metricsClient)
+			got := NewGetDelegationsFunc(tt.args.defaultLimit, tt.args.adapter, tt.args.metricsClient)
 			if tt.valid && got == nil {
 				t.Errorf("NewGetDelegationsFunc() returned nil, expected valid function")
 			} else if !tt.valid && got != nil {
@@ -67,58 +71,57 @@ func Test_NewGetDelegationsFunc(t *testing.T) {
 }
 
 func Test_getDelegations_GetDelegations(t *testing.T) {
-	type fields struct {
-		tzktApiAdapter tzktapi.Adapter
-	}
 	type args struct {
-		ctx      context.Context
-		pageStr  string
-		limitStr string
-		yearStr  string
+		ctx             context.Context
+		pageStr         string
+		limitStr        string
+		yearStr         string
+		maxDelegationID int64
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    *model.DelegationResponse
-		wantErr bool
+		name      string
+		dbAdapter database.Adapter
+		args      args
+		want      *model.DelegationResponse
+		wantErr   bool
 	}{
 		{
 			name: "Nominal case",
-			fields: fields{
-				tzktApiAdapter: func() tzktapi.Adapter {
-					providedTZKTAPI := tzktmock.New()
-					providedTZKTAPI.On("FetchDelegations", mock.Anything, 10, 0).
-						Return(model.TzktDelegationResponse{
-							{
-								Sender:   model.TzktAddress{Address: "tz1..."},
-								Delegate: model.TzktDelegate{Address: "tz2..."},
-								Amount:   100000000,
-								Status:   "applied",
-								Timestamp: func() time.Time {
-									t, _ := time.Parse(time.RFC3339, "2023-01-01T00:00:00Z")
-									return t
-								}(),
-								Level: 1000,
-							},
-						}, nil)
-					return providedTZKTAPI
-				}(),
-			},
-			args: args{
-				ctx:      context.Background(),
-				pageStr:  "1",
-				limitStr: "10",
-				yearStr:  "2023",
-			},
-			want: &model.DelegationResponse{
-				Data: []model.Delegation{
+			dbAdapter: func() database.Adapter {
+				mockDB := dbmock.New()
+				delegations := []model.Delegation{
 					{
+						ID:        1,
 						Delegator: "tz1...",
 						Delegate:  "tz2...",
 						Amount:    100.0,
 						Timestamp: func() int64 {
-							t, _ := time.Parse(time.RFC3339, "2023-01-01T00:00:00Z")
+							t, _ := time.Parse(time.RFC3339, "2025-01-01T00:00:00Z")
+							return t.Unix()
+						}(),
+						Level: 1000,
+					},
+				}
+				mockDB.On("GetDelegations", mock.Anything, uint32(1), uint16(10), uint16(2025), uint64(0)).
+					Return(delegations, 1, nil)
+				return mockDB
+			}(),
+			args: args{
+				ctx:             context.Background(),
+				pageStr:         "1",
+				limitStr:        "10",
+				yearStr:         "2025",
+				maxDelegationID: 0,
+			},
+			want: &model.DelegationResponse{
+				Data: []model.Delegation{
+					{
+						ID:        1,
+						Delegator: "tz1...",
+						Delegate:  "tz2...",
+						Amount:    100.0,
+						Timestamp: func() int64 {
+							t, _ := time.Parse(time.RFC3339, "2025-01-01T00:00:00Z")
 							return t.Unix()
 						}(),
 						Level: 1000,
@@ -130,28 +133,72 @@ func Test_getDelegations_GetDelegations(t *testing.T) {
 					HasPrevPage: false,
 					HasNextPage: false,
 				},
+				MaxDelegationID: 1,
+			},
+			wantErr: false,
+		},
+		{
+			name: "With maxDelegationID",
+			dbAdapter: func() database.Adapter {
+				mockDB := dbmock.New()
+				delegations := []model.Delegation{
+					{
+						ID:        50,
+						Delegator: "tz1...",
+						Delegate:  "tz2...",
+						Amount:    100.0,
+						Timestamp: time.Now().Unix(),
+						Level:     1000,
+					},
+				}
+				mockDB.On("GetDelegations", mock.Anything, uint32(2), uint16(10), uint16(2025), uint64(100)).
+					Return(delegations, 60, nil)
+				return mockDB
+			}(),
+			args: args{
+				ctx:             context.Background(),
+				pageStr:         "2",
+				limitStr:        "10",
+				yearStr:         "2025",
+				maxDelegationID: 100,
+			},
+			want: &model.DelegationResponse{
+				Data: []model.Delegation{
+					{
+						ID:        50,
+						Delegator: "tz1...",
+						Delegate:  "tz2...",
+						Amount:    100.0,
+						Timestamp: time.Now().Unix(),
+						Level:     1000,
+					},
+				},
+				Pagination: model.PaginationInfo{
+					CurrentPage: 2,
+					PerPage:     10,
+					HasPrevPage: true,
+					HasNextPage: true,
+					PrevPage:    1,
+					NextPage:    3,
+				},
+				MaxDelegationID: 50,
 			},
 			wantErr: false,
 		},
 		{
 			name: "Invalid pageStr",
-			fields: fields{
-				tzktApiAdapter: func() tzktapi.Adapter {
-					providedTZKTAPI := tzktmock.New()
-					providedTZKTAPI.On("FetchDelegations", mock.Anything, 10, 0).
-						Return(model.TzktDelegationResponse{
-							{Amount: 100, Status: "applied", Timestamp: time.Now()},
-							{Amount: 120, Status: "applied", Timestamp: time.Now()},
-							{Amount: 140, Status: "applied", Timestamp: time.Now()},
-						}, nil)
-					return providedTZKTAPI
-				}(),
-			},
+			dbAdapter: func() database.Adapter {
+				mockDB := dbmock.New()
+				mockDB.On("GetDelegations", mock.Anything, uint32(1), uint16(10), uint16(0), uint64(0)).
+					Return([]model.Delegation{}, 0, nil)
+				return mockDB
+			}(),
 			args: args{
-				ctx:      context.Background(),
-				pageStr:  "invalid",
-				limitStr: "10",
-				yearStr:  "2023",
+				ctx:             context.Background(),
+				pageStr:         "invalid",
+				limitStr:        "10",
+				yearStr:         "",
+				maxDelegationID: 0,
 			},
 			want: &model.DelegationResponse{
 				Data: []model.Delegation{},
@@ -161,28 +208,24 @@ func Test_getDelegations_GetDelegations(t *testing.T) {
 					HasPrevPage: false,
 					HasNextPage: false,
 				},
+				MaxDelegationID: 0,
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name: "Invalid limitStr",
-			fields: fields{
-				tzktApiAdapter: func() tzktapi.Adapter {
-					providedTZKTAPI := tzktmock.New()
-					providedTZKTAPI.On("FetchDelegations", mock.Anything, 50, 0).
-						Return(model.TzktDelegationResponse{
-							{Amount: 100, Status: "applied", Timestamp: time.Now()},
-							{Amount: 120, Status: "applied", Timestamp: time.Now()},
-							{Amount: 140, Status: "applied", Timestamp: time.Now()},
-						}, nil)
-					return providedTZKTAPI
-				}(),
-			},
+			dbAdapter: func() database.Adapter {
+				mockDB := dbmock.New()
+				mockDB.On("GetDelegations", mock.Anything, uint32(1), uint16(50), uint16(0), uint64(0)).
+					Return([]model.Delegation{}, 0, nil)
+				return mockDB
+			}(),
 			args: args{
-				ctx:      context.Background(),
-				pageStr:  "1",
-				limitStr: "invalid",
-				yearStr:  "2023",
+				ctx:             context.Background(),
+				pageStr:         "1",
+				limitStr:        "invalid",
+				yearStr:         "",
+				maxDelegationID: 0,
 			},
 			want: &model.DelegationResponse{
 				Data: []model.Delegation{},
@@ -192,65 +235,39 @@ func Test_getDelegations_GetDelegations(t *testing.T) {
 					HasPrevPage: false,
 					HasNextPage: false,
 				},
+				MaxDelegationID: 0,
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
-			name: "Invalid yearStr",
-			fields: fields{
-				tzktApiAdapter: func() tzktapi.Adapter {
-					providedTZKTAPI := tzktmock.New()
-					providedTZKTAPI.On("FetchDelegations", mock.Anything, 10, 0).
-						Return(model.TzktDelegationResponse{
-							{
-								Sender:    model.TzktAddress{Address: "tz1..."},
-								Delegate:  model.TzktDelegate{Address: "tz2..."},
-								Amount:    100000000,
-								Status:    "applied",
-								Timestamp: time.Now(),
-								Level:     1000,
-							},
-						}, nil)
-					return providedTZKTAPI
-				}(),
-			},
+			name: "Database error",
+			dbAdapter: func() database.Adapter {
+				mockDB := dbmock.New()
+				mockDB.On("GetDelegations", mock.Anything, uint32(1), uint16(10), uint16(0), uint64(0)).
+					Return([]model.Delegation{}, 0, fmt.Errorf("database error"))
+				return mockDB
+			}(),
 			args: args{
-				ctx:      context.Background(),
-				pageStr:  "1",
-				limitStr: "10",
-				yearStr:  "invalid",
+				ctx:             context.Background(),
+				pageStr:         "1",
+				limitStr:        "10",
+				yearStr:         "",
+				maxDelegationID: 0,
 			},
-			want: &model.DelegationResponse{
-				Data: []model.Delegation{
-					{
-						Delegator: "tz1...",
-						Delegate:  "tz2...",
-						Amount:    100.0,
-						Timestamp: time.Now().Unix(),
-						Level:     1000,
-					},
-				},
-				Pagination: model.PaginationInfo{
-					CurrentPage: 1,
-					PerPage:     10,
-					HasPrevPage: false,
-					HasNextPage: false,
-				},
-			},
-			wantErr: false,
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			uc := &getDelegations{
-				tzktApiAdapter: tt.fields.tzktApiAdapter,
+				dbAdapter: tt.dbAdapter,
 			}
-			got, err := uc.GetDelegations(tt.args.ctx, tt.args.pageStr, tt.args.limitStr, tt.args.yearStr)
+			got, err := uc.GetDelegations(tt.args.ctx, tt.args.pageStr, tt.args.limitStr, tt.args.yearStr, tt.args.maxDelegationID)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetDelegations() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
+			if !tt.wantErr && !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetDelegations() got = %v, want %v", got, tt.want)
 			}
 		})
@@ -258,65 +275,59 @@ func Test_getDelegations_GetDelegations(t *testing.T) {
 }
 
 func Test_getDelegations_parseLimit(t *testing.T) {
-	type fields struct {
-		tzktApiAdapter tzktapi.Adapter
-	}
-	type args struct {
-		limitStr string
-	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   int
+		name     string
+		limitStr string
+		want     uint16
+		wantErr  bool
 	}{
 		{
-			name: "Nominal case",
-			fields: fields{
-				tzktApiAdapter: tzktmock.New(),
-			},
-			args: args{
-				limitStr: "10",
-			},
-			want: 10,
+			name:     "Nominal case",
+			limitStr: "10",
+			want:     10,
+			wantErr:  false,
 		},
 		{
-			name: "Empty limitStr",
-			fields: fields{
-				tzktApiAdapter: tzktmock.New(),
-			},
-			args: args{
-				limitStr: "",
-			},
-			want: 50,
+			name:     "Empty limitStr",
+			limitStr: "",
+			want:     50,
+			wantErr:  false,
 		},
 		{
-			name: "Invalid limitStr",
-			fields: fields{
-				tzktApiAdapter: tzktmock.New(),
-			},
-			args: args{
-				limitStr: "invalid",
-			},
-			want: 50,
+			name:     "Invalid limitStr",
+			limitStr: "invalid",
+			want:     0,
+			wantErr:  true,
 		},
 		{
-			name: "Negative limitStr",
-			fields: fields{
-				tzktApiAdapter: tzktmock.New(),
-			},
-			args: args{
-				limitStr: "-10",
-			},
-			want: 50,
+			name:     "Negative limitStr",
+			limitStr: "-10",
+			want:     0,
+			wantErr:  true,
+		},
+		{
+			name:     "Zero limitStr",
+			limitStr: "0",
+			want:     0,
+			wantErr:  true,
+		},
+		{
+			name:     "Exceeds maximum value",
+			limitStr: "70000",
+			want:     0,
+			wantErr:  true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			uc := &getDelegations{
-				tzktApiAdapter: tt.fields.tzktApiAdapter,
+			got, err := (&getDelegations{}).parseLimit(tt.limitStr)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseLimit() error = %v, wantErr %v", err, tt.wantErr)
+				return
 			}
-			if got := uc.parseLimit(tt.args.limitStr); got != tt.want {
+
+			if !tt.wantErr && got != tt.want {
 				t.Errorf("parseLimit() = %v, want %v", got, tt.want)
 			}
 		})
@@ -324,65 +335,59 @@ func Test_getDelegations_parseLimit(t *testing.T) {
 }
 
 func Test_getDelegations_parsePage(t *testing.T) {
-	type fields struct {
-		tzktApiAdapter tzktapi.Adapter
-	}
-	type args struct {
-		pageStr string
-	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   int
+		name    string
+		pageStr string
+		want    uint32
+		wantErr bool
 	}{
 		{
-			name: "Nominal case",
-			fields: fields{
-				tzktApiAdapter: tzktmock.New(),
-			},
-			args: args{
-				pageStr: "2",
-			},
-			want: 2,
+			name:    "Nominal case",
+			pageStr: "2",
+			want:    2,
+			wantErr: false,
 		},
 		{
-			name: "Empty pageStr",
-			fields: fields{
-				tzktApiAdapter: tzktmock.New(),
-			},
-			args: args{
-				pageStr: "",
-			},
-			want: 1,
+			name:    "Empty pageStr",
+			pageStr: "",
+			want:    1,
+			wantErr: false,
 		},
 		{
-			name: "Invalid pageStr",
-			fields: fields{
-				tzktApiAdapter: tzktmock.New(),
-			},
-			args: args{
-				pageStr: "invalid",
-			},
-			want: 1,
+			name:    "Invalid pageStr",
+			pageStr: "invalid",
+			want:    0,
+			wantErr: true,
 		},
 		{
-			name: "Negative pageStr",
-			fields: fields{
-				tzktApiAdapter: tzktmock.New(),
-			},
-			args: args{
-				pageStr: "-1",
-			},
-			want: 1,
+			name:    "Negative pageStr",
+			pageStr: "-1",
+			want:    0,
+			wantErr: true,
+		},
+		{
+			name:    "Zero pageStr",
+			pageStr: "0",
+			want:    0,
+			wantErr: true,
+		},
+		{
+			name:    "Exceeds maximum value",
+			pageStr: "4294967296", // > max uint32
+			want:    0,
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			uc := &getDelegations{
-				tzktApiAdapter: tt.fields.tzktApiAdapter,
+			got, err := (&getDelegations{}).parsePage(tt.pageStr)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parsePage() error = %v, wantErr %v", err, tt.wantErr)
+				return
 			}
-			if got := uc.parsePage(tt.args.pageStr); got != tt.want {
+
+			if !tt.wantErr && got != tt.want {
 				t.Errorf("parsePage() = %v, want %v", got, tt.want)
 			}
 		})
@@ -390,65 +395,69 @@ func Test_getDelegations_parsePage(t *testing.T) {
 }
 
 func Test_getDelegations_parseYear(t *testing.T) {
-	type fields struct {
-		tzktApiAdapter tzktapi.Adapter
-	}
-	type args struct {
-		yearStr string
-	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   int
+		name     string
+		yearStr  string
+		want     uint16
+		wantErr  bool
+		errorMsg string
 	}{
 		{
-			name: "Nominal case",
-			fields: fields{
-				tzktApiAdapter: tzktmock.New(),
-			},
-			args: args{
-				yearStr: "2023",
-			},
-			want: 2023,
+			name:    "Nominal case",
+			yearStr: "2025",
+			want:    2025,
+			wantErr: false,
 		},
 		{
-			name: "Empty yearStr",
-			fields: fields{
-				tzktApiAdapter: tzktmock.New(),
-			},
-			args: args{
-				yearStr: "",
-			},
-			want: 0,
+			name:    "Empty yearStr",
+			yearStr: "",
+			want:    0,
+			wantErr: false,
 		},
 		{
-			name: "Invalid yearStr",
-			fields: fields{
-				tzktApiAdapter: tzktmock.New(),
-			},
-			args: args{
-				yearStr: "invalid",
-			},
-			want: 0,
+			name:     "Invalid yearStr",
+			yearStr:  "invalid",
+			want:     0,
+			wantErr:  true,
+			errorMsg: "strconv.Atoi: parsing \"invalid\": invalid syntax",
 		},
 		{
-			name: "Negative yearStr",
-			fields: fields{
-				tzktApiAdapter: tzktmock.New(),
-			},
-			args: args{
-				yearStr: "-2023",
-			},
-			want: 0,
+			name:     "Negative yearStr",
+			yearStr:  "-2025",
+			want:     0,
+			wantErr:  true,
+			errorMsg: "year must be a positive number",
+		},
+		{
+			name:     "Zero yearStr",
+			yearStr:  "0",
+			want:     0,
+			wantErr:  true,
+			errorMsg: "year must be a positive number",
+		},
+		{
+			name:     "Future year",
+			yearStr:  fmt.Sprintf("%d", time.Now().Year()+1),
+			want:     0,
+			wantErr:  true,
+			errorMsg: "year cannot exceed the current year",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			uc := &getDelegations{
-				tzktApiAdapter: tt.fields.tzktApiAdapter,
+			got, err := (&getDelegations{}).parseYear(tt.yearStr)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseYear() error = %v, wantErr %v", err, tt.wantErr)
+				return
 			}
-			if got := uc.parseYear(tt.args.yearStr); got != tt.want {
+
+			if tt.wantErr && err != nil && tt.errorMsg != "" && err.Error() != tt.errorMsg {
+				t.Errorf("parseYear() error = %v, wantErrMsg %v", err, tt.errorMsg)
+				return
+			}
+
+			if !tt.wantErr && got != tt.want {
 				t.Errorf("parseYear() = %v, want %v", got, tt.want)
 			}
 		})
@@ -457,7 +466,7 @@ func Test_getDelegations_parseYear(t *testing.T) {
 
 func Test_getDelegations_withMonitorer(t *testing.T) {
 	type fields struct {
-		tzktApiAdapter tzktapi.Adapter
+		dbAdapter database.Adapter
 	}
 	type args struct {
 		getDelegations GetDelegationsFunc
@@ -472,45 +481,45 @@ func Test_getDelegations_withMonitorer(t *testing.T) {
 		{
 			name: "Nominal case",
 			fields: fields{
-				tzktApiAdapter: tzktmock.New(),
+				dbAdapter: dbmock.New(),
 			},
 			args: args{
-				getDelegations: func(ctx context.Context, pageStr, limitStr, yearStr string) (*model.DelegationResponse, error) {
+				getDelegations: func(ctx context.Context, pageStr, limitStr, yearStr string, maxDelegationID int64) (*model.DelegationResponse, error) {
 					return &model.DelegationResponse{}, nil
 				},
 				metricsClient: metricsnoop.New(),
 			},
-			want: func(ctx context.Context, pageStr, limitStr, yearStr string) (*model.DelegationResponse, error) {
+			want: func(ctx context.Context, pageStr, limitStr, yearStr string, maxDelegationID int64) (*model.DelegationResponse, error) {
 				return &model.DelegationResponse{}, nil
 			},
 		},
 		{
 			name: "Error case - nil metrics client",
 			fields: fields{
-				tzktApiAdapter: tzktmock.New(),
+				dbAdapter: dbmock.New(),
 			},
 			args: args{
-				getDelegations: func(ctx context.Context, pageStr, limitStr, yearStr string) (*model.DelegationResponse, error) {
+				getDelegations: func(ctx context.Context, pageStr, limitStr, yearStr string, maxDelegationID int64) (*model.DelegationResponse, error) {
 					return nil, nil
 				},
 				metricsClient: nil,
 			},
-			want: func(ctx context.Context, pageStr, limitStr, yearStr string) (*model.DelegationResponse, error) {
+			want: func(ctx context.Context, pageStr, limitStr, yearStr string, maxDelegationID int64) (*model.DelegationResponse, error) {
 				return nil, nil
 			},
 		},
 		{
 			name: "Error case - getDelegations returns error",
 			fields: fields{
-				tzktApiAdapter: tzktmock.New(),
+				dbAdapter: dbmock.New(),
 			},
 			args: args{
-				getDelegations: func(ctx context.Context, pageStr, limitStr, yearStr string) (*model.DelegationResponse, error) {
+				getDelegations: func(ctx context.Context, pageStr, limitStr, yearStr string, maxDelegationID int64) (*model.DelegationResponse, error) {
 					return nil, fmt.Errorf("error")
 				},
 				metricsClient: metricsnoop.New(),
 			},
-			want: func(ctx context.Context, pageStr, limitStr, yearStr string) (*model.DelegationResponse, error) {
+			want: func(ctx context.Context, pageStr, limitStr, yearStr string, maxDelegationID int64) (*model.DelegationResponse, error) {
 				return nil, fmt.Errorf("error")
 			},
 		},
@@ -518,7 +527,7 @@ func Test_getDelegations_withMonitorer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			uc := &getDelegations{
-				tzktApiAdapter: tt.fields.tzktApiAdapter,
+				dbAdapter: tt.fields.dbAdapter,
 			}
 			got := uc.withMonitorer(tt.args.getDelegations, tt.args.metricsClient)
 
@@ -533,8 +542,8 @@ func Test_getDelegations_withMonitorer(t *testing.T) {
 
 			if tt.want != nil && got != nil {
 				ctx := context.Background()
-				gotResp, gotErr := got(ctx, "1", "10", "2023")
-				wantResp, wantErr := tt.want(ctx, "1", "10", "2023")
+				gotResp, gotErr := got(ctx, "1", "10", "2025", 0)
+				wantResp, wantErr := tt.want(ctx, "1", "10", "2025", 0)
 
 				if (gotErr == nil) != (wantErr == nil) {
 					t.Errorf("withMonitorer() error = %v, want error = %v", gotErr, wantErr)

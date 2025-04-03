@@ -230,7 +230,7 @@ func Test_TelemetryWrapper_FetchDelegationsFromLevel(t *testing.T) {
 	}
 	type args struct {
 		ctx   context.Context
-		level int64
+		level uint64
 	}
 	tests := []struct {
 		name    string
@@ -244,7 +244,7 @@ func Test_TelemetryWrapper_FetchDelegationsFromLevel(t *testing.T) {
 			fields: fields{
 				adapter: func() tzktapi.Adapter {
 					m := tzktapimock.New()
-					m.On("FetchDelegationsFromLevel", mock.Anything, int64(100)).
+					m.On("FetchDelegationsFromLevel", mock.Anything, uint64(100)).
 						Return(stubTZKTDelegationResponse, nil)
 					return m
 				}(),
@@ -263,7 +263,7 @@ func Test_TelemetryWrapper_FetchDelegationsFromLevel(t *testing.T) {
 			fields: fields{
 				adapter: func() tzktapi.Adapter {
 					m := tzktapimock.New()
-					m.On("FetchDelegationsFromLevel", mock.Anything, int64(100)).
+					m.On("FetchDelegationsFromLevel", mock.Anything, uint64(100)).
 						Return(model.TzktDelegationResponse{}, errors.New("adapter error"))
 					return m
 				}(),
@@ -282,7 +282,7 @@ func Test_TelemetryWrapper_FetchDelegationsFromLevel(t *testing.T) {
 			fields: fields{
 				adapter: func() tzktapi.Adapter {
 					m := tzktapimock.New()
-					m.On("FetchDelegationsFromLevel", mock.Anything, int64(100)).
+					m.On("FetchDelegationsFromLevel", mock.Anything, uint64(100)).
 						Return(model.TzktDelegationResponse{}, context.Canceled)
 					return m
 				}(),

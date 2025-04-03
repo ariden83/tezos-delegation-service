@@ -126,7 +126,7 @@ func (uc *syncDelegations) syncHistoricalDelegations(ctx context.Context) error 
 }
 
 // syncIncrementalDelegations syncs delegations from a specific block level
-func (uc *syncDelegations) syncIncrementalDelegations(ctx context.Context, level int64) error {
+func (uc *syncDelegations) syncIncrementalDelegations(ctx context.Context, level uint64) error {
 	uc.logger.Infof("Syncing incremental delegations from level %d\n", level)
 
 	delegations, err := uc.tzktApiAdapter.FetchDelegationsFromLevel(ctx, level)

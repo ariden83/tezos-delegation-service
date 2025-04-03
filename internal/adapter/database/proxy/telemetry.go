@@ -90,9 +90,9 @@ func (w *TelemetryWrapper) GetLatestDelegation(ctx context.Context) (*model.Dele
 }
 
 // GetDelegations retrieves delegations with pagination and records metrics.
-func (w *TelemetryWrapper) GetDelegations(ctx context.Context, page int, limit int, year int) ([]model.Delegation, int, error) {
+func (w *TelemetryWrapper) GetDelegations(ctx context.Context, page uint32, limit, year uint16, maxDelegationID uint64) ([]model.Delegation, int, error) {
 	startTime := time.Now()
-	delegations, totalCount, err := w.db.GetDelegations(ctx, page, limit, year)
+	delegations, totalCount, err := w.db.GetDelegations(ctx, page, limit, year, maxDelegationID)
 	duration := time.Since(startTime)
 
 	if w.metrics != nil {
@@ -103,7 +103,7 @@ func (w *TelemetryWrapper) GetDelegations(ctx context.Context, page int, limit i
 }
 
 // CountDelegations counts the number of delegations for a given year and records metrics.
-func (w *TelemetryWrapper) CountDelegations(ctx context.Context, year int) (int, error) {
+func (w *TelemetryWrapper) CountDelegations(ctx context.Context, year uint16) (int, error) {
 	startTime := time.Now()
 	count, err := w.db.CountDelegations(ctx, year)
 	duration := time.Since(startTime)
@@ -116,7 +116,7 @@ func (w *TelemetryWrapper) CountDelegations(ctx context.Context, year int) (int,
 }
 
 // GetHighestBlockLevel retrieves the highest block level and records metrics.
-func (w *TelemetryWrapper) GetHighestBlockLevel(ctx context.Context) (int64, error) {
+func (w *TelemetryWrapper) GetHighestBlockLevel(ctx context.Context) (uint64, error) {
 	startTime := time.Now()
 	level, err := w.db.GetHighestBlockLevel(ctx)
 	duration := time.Since(startTime)

@@ -3,14 +3,12 @@ package http
 import (
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/tezos-delegation-service/internal/adapter/database"
 	databasemock "github.com/tezos-delegation-service/internal/adapter/database/impl/mock"
 )
 
@@ -32,7 +30,7 @@ func performRequest(router *gin.Engine, method, path string) *httptest.ResponseR
 	return w
 }
 
-func Test_LivenessHandler_v2(t *testing.T) {
+func Test_LivenessHandler(t *testing.T) {
 	mockDB := databasemock.New()
 	healthService := &HealthService{
 		db:        mockDB,
@@ -130,38 +128,4 @@ func Test_StartShutdownAndIsShuttingDown(t *testing.T) {
 
 	healthService.StartShutdown()
 	assert.True(t, healthService.IsShuttingDown())
-}
-
-func TestHealthService_LivenessHandler(t *testing.T) {
-	type fields struct {
-		db              database.Adapter
-		ready           bool
-		readyMu         sync.RWMutex
-		startTime       time.Time
-		shutdownStarted bool
-		shutdownMu      sync.RWMutex
-	}
-	type args struct {
-		c *gin.Context
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			h := &HealthService{
-				db:              tt.fields.db,
-				ready:           tt.fields.ready,
-				readyMu:         tt.fields.readyMu,
-				startTime:       tt.fields.startTime,
-				shutdownStarted: tt.fields.shutdownStarted,
-				shutdownMu:      tt.fields.shutdownMu,
-			}
-			h.LivenessHandler(tt.args.c)
-		})
-	}
 }

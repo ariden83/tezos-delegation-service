@@ -51,7 +51,7 @@ func Test_Mock_Close(t *testing.T) {
 func Test_Mock_CountDelegations(t *testing.T) {
 	type args struct {
 		ctx  context.Context
-		year int
+		year uint16
 	}
 	tests := []struct {
 		name    string
@@ -64,13 +64,13 @@ func Test_Mock_CountDelegations(t *testing.T) {
 			name: "nominal case",
 			mock: func() *Mock {
 				m := New()
-				m.On("CountDelegations", mock.Anything, 2023).
+				m.On("CountDelegations", mock.Anything, uint16(2025)).
 					Return(10, nil)
 				return m
 			}(),
 			args: args{
 				ctx:  context.Background(),
-				year: 2023,
+				year: 2025,
 			},
 			want:    10,
 			wantErr: false,
@@ -79,13 +79,13 @@ func Test_Mock_CountDelegations(t *testing.T) {
 			name: "error case",
 			mock: func() *Mock {
 				m := New()
-				m.On("CountDelegations", mock.Anything, 2023).
+				m.On("CountDelegations", mock.Anything, uint16(2025)).
 					Return(0, errors.New("count error"))
 				return m
 			}(),
 			args: args{
 				ctx:  context.Background(),
-				year: 2023,
+				year: 2025,
 			},
 			want:    0,
 			wantErr: true,
@@ -108,10 +108,11 @@ func Test_Mock_CountDelegations(t *testing.T) {
 
 func Test_Mock_GetDelegations(t *testing.T) {
 	type args struct {
-		ctx   context.Context
-		page  int
-		limit int
-		year  int
+		ctx             context.Context
+		page            uint32
+		limit           uint16
+		year            uint16
+		maxDelegationID uint64
 	}
 	tests := []struct {
 		name    string
@@ -125,15 +126,16 @@ func Test_Mock_GetDelegations(t *testing.T) {
 			name: "nominal case",
 			mock: func() *Mock {
 				m := New()
-				m.On("GetDelegations", mock.Anything, 1, 10, 2023).
+				m.On("GetDelegations", mock.Anything, uint32(1), uint16(10), uint16(2025), uint64(0)).
 					Return([]model.Delegation{{ID: 1}}, 1, nil)
 				return m
 			}(),
 			args: args{
-				ctx:   context.Background(),
-				page:  1,
-				limit: 10,
-				year:  2023,
+				ctx:             context.Background(),
+				page:            1,
+				limit:           10,
+				year:            2025,
+				maxDelegationID: 0,
 			},
 			want:    []model.Delegation{{ID: 1}},
 			want1:   1,
@@ -143,15 +145,16 @@ func Test_Mock_GetDelegations(t *testing.T) {
 			name: "error case",
 			mock: func() *Mock {
 				m := New()
-				m.On("GetDelegations", mock.Anything, 1, 10, 2023).
+				m.On("GetDelegations", mock.Anything, uint32(1), uint16(10), uint16(2025), uint64(0)).
 					Return([]model.Delegation(nil), 0, errors.New("get delegations error"))
 				return m
 			}(),
 			args: args{
-				ctx:   context.Background(),
-				page:  1,
-				limit: 10,
-				year:  2023,
+				ctx:             context.Background(),
+				page:            1,
+				limit:           10,
+				year:            2025,
+				maxDelegationID: 0,
 			},
 			want:    nil,
 			want1:   0,
@@ -161,7 +164,7 @@ func Test_Mock_GetDelegations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := tt.mock
-			got, got1, err := m.GetDelegations(tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year)
+			got, got1, err := m.GetDelegations(tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year, tt.args.maxDelegationID)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetDelegations() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -177,14 +180,10 @@ func Test_Mock_GetDelegations(t *testing.T) {
 }
 
 func Test_Mock_GetHighestBlockLevel(t *testing.T) {
-	type args struct {
-		ctx context.Context
-	}
 	tests := []struct {
 		name    string
 		mock    *Mock
-		args    args
-		want    int64
+		want    uint64
 		wantErr bool
 	}{
 		{
@@ -192,12 +191,9 @@ func Test_Mock_GetHighestBlockLevel(t *testing.T) {
 			mock: func() *Mock {
 				m := New()
 				m.On("GetHighestBlockLevel", mock.Anything).
-					Return(int64(100), nil)
+					Return(uint64(100), nil)
 				return m
 			}(),
-			args: args{
-				ctx: context.Background(),
-			},
 			want:    100,
 			wantErr: false,
 		},
@@ -206,12 +202,9 @@ func Test_Mock_GetHighestBlockLevel(t *testing.T) {
 			mock: func() *Mock {
 				m := New()
 				m.On("GetHighestBlockLevel", mock.Anything).
-					Return(int64(0), errors.New("get highest block level error"))
+					Return(uint64(0), errors.New("get highest block level error"))
 				return m
 			}(),
-			args: args{
-				ctx: context.Background(),
-			},
 			want:    0,
 			wantErr: true,
 		},
@@ -219,7 +212,7 @@ func Test_Mock_GetHighestBlockLevel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := tt.mock
-			got, err := m.GetHighestBlockLevel(tt.args.ctx)
+			got, err := m.GetHighestBlockLevel(context.Background())
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetHighestBlockLevel() error = %v, wantErr %v", err, tt.wantErr)
 				return

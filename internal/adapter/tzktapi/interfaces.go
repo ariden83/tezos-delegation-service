@@ -12,5 +12,5 @@ type Adapter interface {
 	FetchDelegations(ctx context.Context, limit, offset int) (model.TzktDelegationResponse, error)
 
 	// FetchDelegationsFromLevel fetches delegations from a specific level.
-	FetchDelegationsFromLevel(ctx context.Context, level int64) (model.TzktDelegationResponse, error)
+	FetchDelegationsFromLevel(ctx context.Context, level uint64) (model.TzktDelegationResponse, error)
 }

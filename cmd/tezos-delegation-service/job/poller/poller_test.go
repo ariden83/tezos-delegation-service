@@ -3,7 +3,6 @@ package poller
 import (
 	"context"
 	"errors"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -21,6 +20,12 @@ import (
 )
 
 func Test_New(t *testing.T) {
+	tzktAdapter := tzktapimock.New()
+	dbAdapter := databasemock.New()
+	pollingInterval := time.Second
+	metricClient := metrisnoop.New()
+	logger := logrus.NewEntry(logrus.New())
+
 	type args struct {
 		tzktAdapter     tzktapi.Adapter
 		dbAdapter       database.Adapter
@@ -36,51 +41,66 @@ func Test_New(t *testing.T) {
 		{
 			name: "Nominal case",
 			args: args{
-				tzktAdapter:     tzktapimock.New(),
-				dbAdapter:       databasemock.New(),
-				pollingInterval: time.Second,
-				metricClient:    metrisnoop.New(),
-				logger:          logrus.NewEntry(logrus.New()),
+				tzktAdapter:     tzktAdapter,
+				dbAdapter:       dbAdapter,
+				pollingInterval: pollingInterval,
+				metricClient:    metricClient,
+				logger:          logger,
 			},
 			want: &Poller{
-				dbAdapter:       databasemock.New(),
-				logger:          logrus.NewEntry(logrus.New()).WithField("component", "poller"),
-				pollingInterval: time.Second,
-				tzktAdapter:     tzktapimock.New(),
-				ucSyncDelegations: usecase.NewSyncDelegationsFunc(tzktapimock.New(), databasemock.New(), metrisnoop.New(),
-					logrus.NewEntry(logrus.New())),
+				dbAdapter:         dbAdapter,
+				logger:            logger.WithField("component", "poller"),
+				pollingInterval:   pollingInterval,
+				tzktAdapter:       tzktAdapter,
+				ucSyncDelegations: usecase.NewSyncDelegationsFunc(tzktAdapter, dbAdapter, metricClient, logger),
 			},
 		},
 		{
-			name: "Error case - nil tzktAdapter",
+			name: "Case with nil tzktAdapter",
 			args: args{
 				tzktAdapter:     nil,
-				dbAdapter:       databasemock.New(),
-				pollingInterval: time.Second,
-				metricClient:    metrisnoop.New(),
-				logger:          logrus.NewEntry(logrus.New()),
+				dbAdapter:       dbAdapter,
+				pollingInterval: pollingInterval,
+				metricClient:    metricClient,
+				logger:          logger,
 			},
-			want: nil,
+			want: &Poller{
+				dbAdapter:         dbAdapter,
+				logger:            logger.WithField("component", "poller"),
+				pollingInterval:   pollingInterval,
+				tzktAdapter:       nil,
+				ucSyncDelegations: usecase.NewSyncDelegationsFunc(nil, dbAdapter, metricClient, logger),
+			},
 		},
 		{
-			name: "Error case - nil dbAdapter",
+			name: "Case with nil dbAdapter",
 			args: args{
-				tzktAdapter:     tzktapimock.New(),
+				tzktAdapter:     tzktAdapter,
 				dbAdapter:       nil,
-				pollingInterval: time.Second,
-				metricClient:    metrisnoop.New(),
-				logger:          logrus.NewEntry(logrus.New()),
+				pollingInterval: pollingInterval,
+				metricClient:    metricClient,
+				logger:          logger,
 			},
-			want: nil,
+			want: &Poller{
+				dbAdapter:         nil,
+				logger:            logger.WithField("component", "poller"),
+				pollingInterval:   pollingInterval,
+				tzktAdapter:       tzktAdapter,
+				ucSyncDelegations: usecase.NewSyncDelegationsFunc(tzktAdapter, nil, metricClient, logger),
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := New(tt.args.tzktAdapter,
+			got := New(tt.args.tzktAdapter,
 				tt.args.dbAdapter,
 				tt.args.pollingInterval,
 				tt.args.metricClient,
-				tt.args.logger); !reflect.DeepEqual(got, tt.want) {
+				tt.args.logger)
+
+			if got.dbAdapter != tt.want.dbAdapter ||
+				got.pollingInterval != tt.want.pollingInterval ||
+				got.tzktAdapter != tt.want.tzktAdapter {
 				t.Errorf("New() = %v, want %v", got, tt.want)
 			}
 		})
@@ -90,12 +110,8 @@ func Test_New(t *testing.T) {
 func Test_Poller_Run(t *testing.T) {
 	type fields struct {
 		dbAdapter         database.Adapter
-		logger            *logrus.Entry
-		pollingInterval   time.Duration
-		pollingCtx        context.Context
 		pollingCancel     context.CancelFunc
 		pollingWg         *sync.WaitGroup
-		tzktAdapter       tzktapi.Adapter
 		ucSyncDelegations usecase.SyncDelegationsFunc
 	}
 	tests := []struct {
@@ -103,15 +119,32 @@ func Test_Poller_Run(t *testing.T) {
 		fields fields
 	}{
 		{
-			name: "Nominal case",
+			name: "Nominal case with highestLevel 0",
 			fields: fields{
-				dbAdapter:       databasemock.New(),
-				logger:          logrus.NewEntry(logrus.New()),
-				pollingInterval: time.Second,
-				pollingCtx:      context.Background(),
-				pollingCancel:   nil,
-				pollingWg:       &sync.WaitGroup{},
-				tzktAdapter:     tzktapimock.New(),
+				dbAdapter: func() database.Adapter {
+					db := databasemock.New()
+					db.On("GetHighestBlockLevel", mock.Anything).
+						Return(uint64(0), nil)
+					return db
+				}(),
+				pollingCancel: nil,
+				pollingWg:     &sync.WaitGroup{},
+				ucSyncDelegations: func(ctx context.Context) error {
+					return nil
+				},
+			},
+		},
+		{
+			name: "Nominal case with highestLevel over 0",
+			fields: fields{
+				dbAdapter: func() database.Adapter {
+					db := databasemock.New()
+					db.On("GetHighestBlockLevel", mock.Anything).
+						Return(uint64(100), nil)
+					return db
+				}(),
+				pollingCancel: nil,
+				pollingWg:     &sync.WaitGroup{},
 				ucSyncDelegations: func(ctx context.Context) error {
 					return nil
 				},
@@ -123,15 +156,11 @@ func Test_Poller_Run(t *testing.T) {
 				dbAdapter: func() database.Adapter {
 					m := databasemock.New()
 					m.On("GetHighestBlockLevel", mock.Anything).
-						Return(0, errors.New("db error"))
+						Return(uint64(0), errors.New("db error"))
 					return m
 				}(),
-				logger:          logrus.NewEntry(logrus.New()),
-				pollingInterval: time.Second,
-				pollingCtx:      context.Background(),
-				pollingCancel:   nil,
-				pollingWg:       &sync.WaitGroup{},
-				tzktAdapter:     tzktapimock.New(),
+				pollingCancel: nil,
+				pollingWg:     &sync.WaitGroup{},
 				ucSyncDelegations: func(ctx context.Context) error {
 					return nil
 				},
@@ -143,15 +172,11 @@ func Test_Poller_Run(t *testing.T) {
 				dbAdapter: func() database.Adapter {
 					m := databasemock.New()
 					m.On("GetHighestBlockLevel", mock.Anything).
-						Return(0, nil)
+						Return(uint64(0), nil)
 					return m
 				}(),
-				logger:          logrus.NewEntry(logrus.New()),
-				pollingInterval: time.Second,
-				pollingCtx:      context.Background(),
-				pollingCancel:   nil,
-				pollingWg:       &sync.WaitGroup{},
-				tzktAdapter:     tzktapimock.New(),
+				pollingCancel: nil,
+				pollingWg:     &sync.WaitGroup{},
 				ucSyncDelegations: func(ctx context.Context) error {
 					return errors.New("sync error")
 				},
@@ -160,17 +185,20 @@ func Test_Poller_Run(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+
 			p := &Poller{
 				dbAdapter:         tt.fields.dbAdapter,
-				logger:            tt.fields.logger,
-				pollingInterval:   tt.fields.pollingInterval,
-				pollingCtx:        tt.fields.pollingCtx,
+				logger:            logrus.NewEntry(logrus.New()),
+				pollingInterval:   time.Second,
+				pollingCtx:        ctx,
 				pollingCancel:     tt.fields.pollingCancel,
 				pollingWg:         tt.fields.pollingWg,
-				tzktAdapter:       tt.fields.tzktAdapter,
 				ucSyncDelegations: tt.fields.ucSyncDelegations,
 			}
-			p.Run()
+			p.Run(ctx)
 		})
 	}
 }
@@ -178,12 +206,8 @@ func Test_Poller_Run(t *testing.T) {
 func Test_Poller_StartPolling(t *testing.T) {
 	type fields struct {
 		dbAdapter         database.Adapter
-		logger            *logrus.Entry
-		pollingInterval   time.Duration
-		pollingCtx        context.Context
 		pollingCancel     context.CancelFunc
 		pollingWg         *sync.WaitGroup
-		tzktAdapter       tzktapi.Adapter
 		ucSyncDelegations usecase.SyncDelegationsFunc
 	}
 	tests := []struct {
@@ -194,29 +218,9 @@ func Test_Poller_StartPolling(t *testing.T) {
 		{
 			name: "Nominal case",
 			fields: fields{
-				dbAdapter:       databasemock.New(),
-				logger:          logrus.NewEntry(logrus.New()),
-				pollingInterval: time.Second,
-				pollingCtx:      context.Background(),
-				pollingCancel:   nil,
-				pollingWg:       &sync.WaitGroup{},
-				tzktAdapter:     tzktapimock.New(),
-				ucSyncDelegations: func(ctx context.Context) error {
-					return nil
-				},
-			},
-			ctx: context.Background(),
-		},
-		{
-			name: "Error case - pollingWg is nil",
-			fields: fields{
-				dbAdapter:       databasemock.New(),
-				logger:          logrus.NewEntry(logrus.New()),
-				pollingInterval: time.Second,
-				pollingCtx:      context.Background(),
-				pollingCancel:   nil,
-				pollingWg:       nil,
-				tzktAdapter:     tzktapimock.New(),
+				dbAdapter:     databasemock.New(),
+				pollingCancel: nil,
+				pollingWg:     &sync.WaitGroup{},
 				ucSyncDelegations: func(ctx context.Context) error {
 					return nil
 				},
@@ -226,13 +230,9 @@ func Test_Poller_StartPolling(t *testing.T) {
 		{
 			name: "Error case - ucSyncDelegations returns error",
 			fields: fields{
-				dbAdapter:       databasemock.New(),
-				logger:          logrus.NewEntry(logrus.New()),
-				pollingInterval: time.Second,
-				pollingCtx:      context.Background(),
-				pollingCancel:   nil,
-				pollingWg:       &sync.WaitGroup{},
-				tzktAdapter:     tzktapimock.New(),
+				dbAdapter:     databasemock.New(),
+				pollingCancel: nil,
+				pollingWg:     &sync.WaitGroup{},
 				ucSyncDelegations: func(ctx context.Context) error {
 					return errors.New("sync error")
 				},
@@ -242,17 +242,19 @@ func Test_Poller_StartPolling(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+
 			p := &Poller{
 				dbAdapter:         tt.fields.dbAdapter,
-				logger:            tt.fields.logger,
-				pollingInterval:   tt.fields.pollingInterval,
-				pollingCtx:        tt.fields.pollingCtx,
+				logger:            logrus.NewEntry(logrus.New()),
+				pollingInterval:   time.Second,
+				pollingCtx:        ctx,
 				pollingCancel:     tt.fields.pollingCancel,
 				pollingWg:         tt.fields.pollingWg,
-				tzktAdapter:       tt.fields.tzktAdapter,
 				ucSyncDelegations: tt.fields.ucSyncDelegations,
 			}
-			p.StartPolling(tt.ctx)
+			p.StartPolling(ctx)
 		})
 	}
 }
@@ -260,12 +262,8 @@ func Test_Poller_StartPolling(t *testing.T) {
 func Test_Poller_StopPolling(t *testing.T) {
 	type fields struct {
 		dbAdapter         database.Adapter
-		logger            *logrus.Entry
-		pollingInterval   time.Duration
-		pollingCtx        context.Context
 		pollingCancel     context.CancelFunc
 		pollingWg         *sync.WaitGroup
-		tzktAdapter       tzktapi.Adapter
 		ucSyncDelegations usecase.SyncDelegationsFunc
 	}
 	tests := []struct {
@@ -275,50 +273,33 @@ func Test_Poller_StopPolling(t *testing.T) {
 		{
 			name: "Nominal case",
 			fields: fields{
-				dbAdapter:       databasemock.New(),
-				logger:          logrus.NewEntry(logrus.New()),
-				pollingInterval: time.Second,
-				pollingCtx:      context.Background(),
-				pollingCancel:   nil,
-				pollingWg:       &sync.WaitGroup{},
-				tzktAdapter:     tzktapimock.New(),
+				dbAdapter:     databasemock.New(),
+				pollingCancel: nil,
+				pollingWg:     &sync.WaitGroup{},
 			},
 		},
 		{
 			name: "Error case - pollingCancel is nil",
 			fields: fields{
-				dbAdapter:       databasemock.New(),
-				logger:          logrus.NewEntry(logrus.New()),
-				pollingInterval: time.Second,
-				pollingCtx:      context.Background(),
-				pollingCancel:   nil,
-				pollingWg:       &sync.WaitGroup{},
-				tzktAdapter:     tzktapimock.New(),
-			},
-		},
-		{
-			name: "Error case - pollingWg is nil",
-			fields: fields{
-				dbAdapter:       databasemock.New(),
-				logger:          logrus.NewEntry(logrus.New()),
-				pollingInterval: time.Second,
-				pollingCtx:      context.Background(),
-				pollingCancel:   func() {},
-				pollingWg:       nil,
-				tzktAdapter:     tzktapimock.New(),
+				dbAdapter:     databasemock.New(),
+				pollingCancel: nil,
+				pollingWg:     &sync.WaitGroup{},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+
 			p := &Poller{
 				dbAdapter:         tt.fields.dbAdapter,
-				logger:            tt.fields.logger,
-				pollingInterval:   tt.fields.pollingInterval,
-				pollingCtx:        tt.fields.pollingCtx,
+				logger:            logrus.NewEntry(logrus.New()),
+				pollingInterval:   time.Second,
+				pollingCtx:        ctx,
 				pollingCancel:     tt.fields.pollingCancel,
 				pollingWg:         tt.fields.pollingWg,
-				tzktAdapter:       tt.fields.tzktAdapter,
 				ucSyncDelegations: tt.fields.ucSyncDelegations,
 			}
 			p.StopPolling()

@@ -132,7 +132,7 @@ func Test_Mock_FetchDelegations(t *testing.T) {
 func Test_Mock_FetchDelegationsFromLevel(t *testing.T) {
 	type args struct {
 		ctx   context.Context
-		level int64
+		level uint64
 	}
 	tests := []struct {
 		name    string
@@ -145,7 +145,7 @@ func Test_Mock_FetchDelegationsFromLevel(t *testing.T) {
 			name: "Nominal case",
 			mock: func() *Mock {
 				m := New()
-				m.On("FetchDelegationsFromLevel", mock.Anything, int64(100)).
+				m.On("FetchDelegationsFromLevel", mock.Anything, uint64(100)).
 					Return(stubTZKTDelegationResponse, nil)
 				return m
 			}(),
@@ -160,7 +160,7 @@ func Test_Mock_FetchDelegationsFromLevel(t *testing.T) {
 			name: "Error case - API error",
 			mock: func() *Mock {
 				m := New()
-				m.On("FetchDelegationsFromLevel", mock.Anything, int64(100)).
+				m.On("FetchDelegationsFromLevel", mock.Anything, uint64(100)).
 					Return(model.TzktDelegationResponse{}, errors.New("API error"))
 				return m
 			}(),
@@ -175,7 +175,7 @@ func Test_Mock_FetchDelegationsFromLevel(t *testing.T) {
 			name: "Error case - Invalid response",
 			mock: func() *Mock {
 				m := New()
-				m.On("FetchDelegationsFromLevel", mock.Anything, int64(100)).
+				m.On("FetchDelegationsFromLevel", mock.Anything, uint64(100)).
 					Return(model.TzktDelegationResponse{}, errors.New("invalid response"))
 				return m
 			}(),

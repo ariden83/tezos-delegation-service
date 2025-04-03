@@ -3,6 +3,7 @@ package psql
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -101,38 +102,51 @@ func (p *psql) GetLatestDelegation(ctx context.Context) (*model.Delegation, erro
 	return &delegation, nil
 }
 
-// GetDelegations returns delegations with pagination and optional year filter.
-func (p *psql) GetDelegations(ctx context.Context, page int, limit int, year int) ([]model.Delegation, int, error) {
+// GetDelegations returns delegations with pagination and optional year and maxDelegationID filters.
+func (p *psql) GetDelegations(ctx context.Context, page uint32, limit, year uint16, maxDelegationID uint64) ([]model.Delegation, int, error) {
 	var delegations []model.Delegation
-	if limit <= 0 {
+	if limit == 0 {
 		limit = 50
 	}
-	offset := (page - 1) * limit
+	offset := (page - 1) * uint32(limit)
 
-	var query string
-	var args []interface{}
+	var (
+		query       string
+		args        []interface{}
+		whereClause string
+		argIndex    = 1
+	)
+
+	applyMaxIDFilter := maxDelegationID > 0 && page > 1 && (year == 0 || int(year) == time.Now().Year())
 
 	if year > 0 {
-		startDate := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
-		endDate := time.Date(year+1, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
+		startDate := time.Date(int(year), 1, 1, 0, 0, 0, 0, time.UTC).Unix()
+		endDate := time.Date(int(year)+1, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
+		whereClause = "WHERE timestamp >= $" + strconv.Itoa(argIndex) + " AND timestamp < $" + strconv.Itoa(argIndex+1)
+		args = append(args, startDate, endDate)
+		argIndex += 2
 
-		query = `
-			SELECT id, delegator, timestamp, amount, level, created_at
-			FROM delegations
-			WHERE timestamp >= $1 AND timestamp < $2
-			ORDER BY timestamp DESC
-			LIMIT $3 OFFSET $4
-		`
-		args = []interface{}{startDate, endDate, limit, offset}
+		if applyMaxIDFilter {
+			whereClause += " AND id <= $" + strconv.Itoa(argIndex)
+			args = append(args, maxDelegationID)
+			argIndex++
+		}
 	} else {
-		query = `
-			SELECT id, delegator, timestamp, amount, level, created_at
-			FROM delegations
-			ORDER BY timestamp DESC
-			LIMIT $1 OFFSET $2
-		`
-		args = []interface{}{limit, offset}
+		if applyMaxIDFilter {
+			whereClause = "WHERE id <= $" + strconv.Itoa(argIndex)
+			args = append(args, maxDelegationID)
+			argIndex++
+		}
 	}
+
+	query = `
+		SELECT id, delegator, timestamp, amount, level, created_at
+		FROM delegations
+		` + whereClause + `
+		ORDER BY timestamp DESC
+		LIMIT $` + strconv.Itoa(argIndex) + ` OFFSET $` + strconv.Itoa(argIndex+1) + `
+	`
+	args = append(args, limit, offset)
 
 	err := p.db.SelectContext(ctx, &delegations, query, args...)
 	if err != nil {
@@ -148,14 +162,14 @@ func (p *psql) GetDelegations(ctx context.Context, page int, limit int, year int
 }
 
 // CountDelegations returns the total count of delegations with optional year filter.
-func (p *psql) CountDelegations(ctx context.Context, year int) (int, error) {
+func (p *psql) CountDelegations(ctx context.Context, year uint16) (int, error) {
 	var count int
 	var query string
 	var args []interface{}
 
 	if year > 0 {
-		startDate := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
-		endDate := time.Date(year+1, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
+		startDate := time.Date(int(year), 1, 1, 0, 0, 0, 0, time.UTC).Unix()
+		endDate := time.Date(int(year)+1, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
 
 		query = `
 			SELECT COUNT(*) 
@@ -179,8 +193,8 @@ func (p *psql) CountDelegations(ctx context.Context, year int) (int, error) {
 }
 
 // GetHighestBlockLevel returns the highest block level in the database.
-func (p *psql) GetHighestBlockLevel(ctx context.Context) (int64, error) {
-	var level int64
+func (p *psql) GetHighestBlockLevel(ctx context.Context) (uint64, error) {
+	var level uint64
 	err := p.db.GetContext(ctx, &level, "SELECT COALESCE(MAX(level), 0) FROM delegations")
 	return level, err
 }

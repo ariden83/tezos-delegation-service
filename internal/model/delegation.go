@@ -27,6 +27,7 @@ type PaginationInfo struct {
 
 // DelegationResponse is the response format for the API
 type DelegationResponse struct {
-	Data       []Delegation   `json:"data"`
-	Pagination PaginationInfo `json:"pagination,omitempty"`
+	Data            []Delegation   `json:"data"`
+	Pagination      PaginationInfo `json:"pagination,omitempty"`
+	MaxDelegationID int64          `json:"-"`
 }

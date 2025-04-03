@@ -134,7 +134,7 @@ func Test_TelemetryWrapper_CountDelegations(t *testing.T) {
 	}
 	type args struct {
 		ctx  context.Context
-		year int
+		year uint16
 	}
 	tests := []struct {
 		name    string
@@ -149,14 +149,15 @@ func Test_TelemetryWrapper_CountDelegations(t *testing.T) {
 				metrics: metricsmemory.New(),
 				db: func() database.Adapter {
 					m := databasemock.New()
-					m.On("CountDelegations", mock.Anything, 2023).Return(10, nil)
+					m.On("CountDelegations", mock.Anything, uint16(2025)).
+						Return(10, nil)
 					return m
 				}(),
 				implType: "api",
 			},
 			args: args{
 				ctx:  context.TODO(),
-				year: 2023,
+				year: 2025,
 			},
 			want:    10,
 			wantErr: false,
@@ -167,7 +168,7 @@ func Test_TelemetryWrapper_CountDelegations(t *testing.T) {
 				metrics: metricsmemory.New(),
 				db: func() database.Adapter {
 					m := databasemock.New()
-					m.On("CountDelegations", mock.Anything, 2023).
+					m.On("CountDelegations", mock.Anything, uint16(2025)).
 						Return(0, errors.New("db error"))
 					return m
 				}(),
@@ -175,7 +176,7 @@ func Test_TelemetryWrapper_CountDelegations(t *testing.T) {
 			},
 			args: args{
 				ctx:  context.TODO(),
-				year: 2023,
+				year: 2025,
 			},
 			want:    0,
 			wantErr: true,
@@ -207,10 +208,11 @@ func Test_TelemetryWrapper_GetDelegations(t *testing.T) {
 		implType string
 	}
 	type args struct {
-		ctx   context.Context
-		page  int
-		limit int
-		year  int
+		ctx             context.Context
+		page            uint32
+		limit           uint16
+		year            uint16
+		maxDelegationID uint64
 	}
 	tests := []struct {
 		name    string
@@ -226,7 +228,7 @@ func Test_TelemetryWrapper_GetDelegations(t *testing.T) {
 				metrics: metricsmemory.New(),
 				db: func() database.Adapter {
 					m := databasemock.New()
-					m.On("GetDelegations", mock.Anything, 1, 10, 2023).
+					m.On("GetDelegations", mock.Anything, uint32(1), uint16(10), uint16(2025), uint64(0)).
 						Return([]model.Delegation{
 							{Amount: 100},
 							{Amount: 200},
@@ -239,7 +241,7 @@ func Test_TelemetryWrapper_GetDelegations(t *testing.T) {
 				ctx:   context.TODO(),
 				page:  1,
 				limit: 10,
-				year:  2023,
+				year:  2025,
 			},
 			want: []model.Delegation{
 				{Amount: 100},
@@ -254,7 +256,7 @@ func Test_TelemetryWrapper_GetDelegations(t *testing.T) {
 				metrics: metricsmemory.New(),
 				db: func() database.Adapter {
 					m := databasemock.New()
-					m.On("GetDelegations", mock.Anything, 1, 10, 2023).
+					m.On("GetDelegations", mock.Anything, uint32(1), uint16(10), uint16(2025), uint64(0)).
 						Return([]model.Delegation{}, 0, errors.New("db error"))
 					return m
 				}(),
@@ -264,7 +266,7 @@ func Test_TelemetryWrapper_GetDelegations(t *testing.T) {
 				ctx:   context.TODO(),
 				page:  1,
 				limit: 10,
-				year:  2023,
+				year:  2025,
 			},
 			want:    []model.Delegation{},
 			want1:   0,
@@ -278,7 +280,7 @@ func Test_TelemetryWrapper_GetDelegations(t *testing.T) {
 				db:       tt.fields.db,
 				implType: tt.fields.implType,
 			}
-			got, got1, err := w.GetDelegations(tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year)
+			got, got1, err := w.GetDelegations(tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year, tt.args.maxDelegationID)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetDelegations() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -303,7 +305,7 @@ func Test_TelemetryWrapper_GetHighestBlockLevel(t *testing.T) {
 		name    string
 		fields  fields
 		ctx     context.Context
-		want    int64
+		want    uint64
 		wantErr bool
 	}{
 		{
@@ -312,7 +314,8 @@ func Test_TelemetryWrapper_GetHighestBlockLevel(t *testing.T) {
 				metrics: metricsmemory.New(),
 				db: func() database.Adapter {
 					m := databasemock.New()
-					m.On("GetHighestBlockLevel", mock.Anything).Return(int64(1000), nil)
+					m.On("GetHighestBlockLevel", mock.Anything).
+						Return(uint64(1000), nil)
 					return m
 				}(),
 				implType: "api",
@@ -328,7 +331,7 @@ func Test_TelemetryWrapper_GetHighestBlockLevel(t *testing.T) {
 				db: func() database.Adapter {
 					m := databasemock.New()
 					m.On("GetHighestBlockLevel", mock.Anything).
-						Return(int64(0), errors.New("db error"))
+						Return(uint64(0), errors.New("db error"))
 					return m
 				}(),
 				implType: "api",

@@ -38,7 +38,9 @@ func (h *GetDelegationHandler) GetDelegations(c *gin.Context) {
 		return
 	}
 
-	response, err := h.getDelegationsFunc(ctx, strconv.Itoa(page), strconv.Itoa(limit), year)
+	maxDelegationID := h.extractMaxDelegationID(c)
+
+	response, err := h.getDelegationsFunc(ctx, strconv.Itoa(page), strconv.Itoa(limit), year, maxDelegationID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -47,14 +49,28 @@ func (h *GetDelegationHandler) GetDelegations(c *gin.Context) {
 	h.setPaginationHeaders(c, response.Pagination)
 	h.setRequestIDHeader(c)
 	h.setCacheHeaders(c, year)
+	h.setMaxDelegationIDHeader(c, response.MaxDelegationID)
 	h.setETagHeader(c, response)
 
-	if c.GetHeader("If-None-Match") == c.GetHeader("ETag") {
+	if c.GetHeader("If-None-Match") == c.Writer.Header().Get("ETag") {
 		c.Status(http.StatusNotModified)
 		return
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+// extractMaxDelegationID extracts and parses the X-Max-Delegation-ID header.
+func (h *GetDelegationHandler) extractMaxDelegationID(c *gin.Context) int64 {
+	maxDelegationID := int64(0)
+	maxDelegationIDStr := c.GetHeader("X-Max-Delegation-ID")
+	if maxDelegationIDStr != "" {
+		parsedID, err := strconv.ParseInt(maxDelegationIDStr, 10, 64)
+		if err == nil && parsedID > 0 {
+			maxDelegationID = parsedID
+		}
+	}
+	return maxDelegationID
 }
 
 // validateRequestParams validates and parses request parameters.
@@ -106,8 +122,20 @@ func (h *GetDelegationHandler) setCacheHeaders(c *gin.Context, year string) {
 
 // setETagHeader sets the ETag header for the response.
 func (h *GetDelegationHandler) setETagHeader(c *gin.Context, response *model.DelegationResponse) {
-	jsonData, _ := json.Marshal(response)
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		etag := `"` + strconv.FormatInt(time.Now().UnixNano(), 36) + `"`
+		c.Header("ETag", etag)
+		return
+	}
 	hash := sha256.Sum256(jsonData)
 	etag := `"` + hex.EncodeToString(hash[:]) + `"`
 	c.Header("ETag", etag)
+}
+
+// setMaxDelegationIDHeader sets the X-Max-Delegation-ID header with the highest delegation ID.
+func (h *GetDelegationHandler) setMaxDelegationIDHeader(c *gin.Context, maxDelegationID int64) {
+	if maxDelegationID > 0 {
+		c.Header("X-Max-Delegation-ID", strconv.FormatInt(maxDelegationID, 10))
+	}
 }

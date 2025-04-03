@@ -22,12 +22,12 @@ type Config struct {
 
 // ServerConfig represents the server configuration.
 type ServerConfig struct {
-	Port int `mapstructure:"port"`
+	Port uint16 `mapstructure:"port"`
 }
 
 // PaginationConfig represents the pagination configuration.
 type PaginationConfig struct {
-	Limit int `mapstructure:"limit"`
+	Limit uint16 `mapstructure:"limit"`
 }
 
 // Load loads the configuration from the specified file.

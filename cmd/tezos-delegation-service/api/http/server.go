@@ -12,7 +12,6 @@ import (
 
 	"github.com/tezos-delegation-service/internal/adapter/database"
 	"github.com/tezos-delegation-service/internal/adapter/metrics"
-	"github.com/tezos-delegation-service/internal/adapter/tzktapi"
 	"github.com/tezos-delegation-service/internal/usecase"
 )
 
@@ -31,15 +30,15 @@ type Server struct {
 	healthService *HealthService
 	logger        *logrus.Entry
 	metrics       metrics.Adapter
-	port          int
+	port          uint16
 	router        *gin.Engine
 	handlers      *handlers
 }
 
 // NewServer creates a new HTTP server.
-func NewServer(port int, TZKTAPIAdapter tzktapi.Adapter, dbAdapter database.Adapter, metricClient metrics.Adapter, logger *logrus.Entry) *Server {
+func NewServer(port, defaultPaginationLimit uint16, dbAdapter database.Adapter, metricClient metrics.Adapter, logger *logrus.Entry) *Server {
 	u := &usecases{
-		getDelegationsFunc: usecase.NewGetDelegationsFunc(TZKTAPIAdapter, metricClient),
+		getDelegationsFunc: usecase.NewGetDelegationsFunc(defaultPaginationLimit, dbAdapter, metricClient),
 	}
 
 	h := &handlers{

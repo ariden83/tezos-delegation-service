@@ -100,7 +100,7 @@ func Test_psql_Close(t *testing.T) {
 func Test_psql_CountDelegations(t *testing.T) {
 	type args struct {
 		ctx  context.Context
-		year int
+		year uint16
 	}
 	tests := []struct {
 		name    string
@@ -210,10 +210,11 @@ func Test_psql_CountDelegations(t *testing.T) {
 
 func Test_psql_GetDelegations(t *testing.T) {
 	type args struct {
-		ctx   context.Context
-		page  int
-		limit int
-		year  int
+		ctx             context.Context
+		page            uint32
+		limit           uint16
+		year            uint16
+		maxDelegationID uint64
 	}
 	tests := []struct {
 		name    string
@@ -223,6 +224,77 @@ func Test_psql_GetDelegations(t *testing.T) {
 		want1   int
 		wantErr assert.ErrorAssertionFunc
 	}{
+		{
+			name: "With maxDelegationID filter",
+			db: func() *sqlx.DB {
+				db, mock, _ := sqlmock.New()
+
+				createdAt := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+
+				rows := sqlmock.NewRows([]string{"id", "delegator", "timestamp", "amount", "level", "created_at"}).
+					AddRow(1, "delegator1", int64(1672531199), float64(1000), int64(1), createdAt)
+
+				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM delegations WHERE id <= \\$1 ORDER BY timestamp DESC LIMIT \\$2 OFFSET \\$3").
+					WithArgs(int64(10), 2, 2).WillReturnRows(rows)
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM delegations").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+				return sqlx.NewDb(db, "sqlmock")
+			}(),
+			args: args{
+				ctx:             context.Background(),
+				page:            2,
+				limit:           2,
+				year:            0,
+				maxDelegationID: 10,
+			},
+			want: []model.Delegation{
+				{ID: 1, Delegator: "delegator1",
+					Timestamp: 1672531199,
+					Amount:    1000,
+					Level:     1,
+					CreatedAt: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)},
+			},
+			want1:   1,
+			wantErr: assert.NoError,
+		},
+		{
+			name: "With maxDelegationID filter and year",
+			db: func() *sqlx.DB {
+				db, mock, _ := sqlmock.New()
+
+				createdAt := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+				startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
+				endDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
+
+				rows := sqlmock.NewRows([]string{"id", "delegator", "timestamp", "amount", "level", "created_at"}).
+					AddRow(1, "delegator1", int64(1672531199), float64(1000), int64(1), createdAt)
+
+				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM delegations WHERE timestamp >= \\$1 AND timestamp < \\$2 ORDER BY timestamp DESC LIMIT \\$3 OFFSET \\$4").
+					WithArgs(startDate, endDate, 2, 2).WillReturnRows(rows)
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM delegations WHERE timestamp >= \\$1 AND timestamp < \\$2").
+					WithArgs(startDate, endDate).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+				return sqlx.NewDb(db, "sqlmock")
+			}(),
+			args: args{
+				ctx:             context.Background(),
+				page:            2,
+				limit:           2,
+				year:            2023,
+				maxDelegationID: 10,
+			},
+			want: []model.Delegation{
+				{ID: 1,
+					Delegator: "delegator1",
+					Timestamp: 1672531199,
+					Amount:    1000,
+					Level:     1,
+					CreatedAt: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			want1:   1,
+			wantErr: assert.NoError,
+		},
 		{
 			name: "Nominal case",
 			db: func() *sqlx.DB {
@@ -241,35 +313,25 @@ func Test_psql_GetDelegations(t *testing.T) {
 				return sqlx.NewDb(db, "sqlmock")
 			}(),
 			args: args{
-				ctx:   context.Background(),
-				page:  1,
-				limit: 2,
-				year:  0,
+				ctx:             context.Background(),
+				page:            1,
+				limit:           2,
+				year:            0,
+				maxDelegationID: 0,
 			},
 			want: []model.Delegation{
-				{ID: 1, Delegator: "delegator1", Timestamp: 1672531199, Amount: 1000, Level: 1, CreatedAt: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)},
-				{ID: 2, Delegator: "delegator2", Timestamp: 1672531200, Amount: 2000, Level: 2, CreatedAt: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)},
+				{ID: 1, Delegator: "delegator1",
+					Timestamp: 1672531199,
+					Amount:    1000, Level: 1,
+					CreatedAt: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)},
+				{ID: 2, Delegator: "delegator2",
+					Timestamp: 1672531200,
+					Amount:    2000,
+					Level:     2,
+					CreatedAt: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)},
 			},
 			want1:   2,
 			wantErr: assert.NoError,
-		},
-		{
-			name: "Error case - invalid year",
-			db: func() *sqlx.DB {
-				db, mock, _ := sqlmock.New()
-				mock.ExpectQuery("SELECT id, delegator, timestamp, amount, level, created_at FROM delegations WHERE timestamp >= \\$1 AND timestamp < \\$2 ORDER BY timestamp DESC LIMIT \\$3 OFFSET \\$4").
-					WithArgs(int64(-62135596800), int64(-62135596800), 2, 0).WillReturnError(fmt.Errorf("invalid year"))
-				return sqlx.NewDb(db, "sqlmock")
-			}(),
-			args: args{
-				ctx:   context.Background(),
-				page:  1,
-				limit: 2,
-				year:  -1,
-			},
-			want:    nil,
-			want1:   0,
-			wantErr: assert.Error,
 		},
 		{
 			name: "Error case - context canceled",
@@ -285,9 +347,10 @@ func Test_psql_GetDelegations(t *testing.T) {
 					cancel()
 					return ctx
 				}(),
-				page:  1,
-				limit: 2,
-				year:  0,
+				page:            1,
+				limit:           2,
+				year:            0,
+				maxDelegationID: 0,
 			},
 			want:    nil,
 			want1:   0,
@@ -299,12 +362,15 @@ func Test_psql_GetDelegations(t *testing.T) {
 			p := &psql{
 				db: tt.db,
 			}
-			got, got1, err := p.GetDelegations(tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year)
-			if !tt.wantErr(t, err, fmt.Sprintf("GetDelegations(%v, %v, %v, %v)", tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year)) {
+			got, got1, err := p.GetDelegations(tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year, tt.args.maxDelegationID)
+			if !tt.wantErr(t, err, fmt.Sprintf("GetDelegations(%v, %v, %v, %v, %v)",
+				tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year, tt.args.maxDelegationID)) {
 				return
 			}
-			assert.Equalf(t, tt.want, got, "GetDelegations(%v, %v, %v, %v)", tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year)
-			assert.Equalf(t, tt.want1, got1, "GetDelegations(%v, %v, %v, %v)", tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year)
+			assert.Equalf(t, tt.want, got, "GetDelegations(%v, %v, %v, %v, %v)",
+				tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year, tt.args.maxDelegationID)
+			assert.Equalf(t, tt.want1, got1, "GetDelegations(%v, %v, %v, %v, %v)",
+				tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year, tt.args.maxDelegationID)
 		})
 	}
 }
@@ -314,7 +380,7 @@ func Test_psql_GetHighestBlockLevel(t *testing.T) {
 		name    string
 		db      *sqlx.DB
 		ctx     context.Context
-		want    int64
+		want    uint64
 		wantErr assert.ErrorAssertionFunc
 	}{
 		{

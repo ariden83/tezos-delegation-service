@@ -40,7 +40,7 @@ func (w *TelemetryWrapper) FetchDelegations(ctx context.Context, limit, offset i
 }
 
 // FetchDelegationsFromLevel fetches delegations from a level with telemetry
-func (w *TelemetryWrapper) FetchDelegationsFromLevel(ctx context.Context, level int64) (model.TzktDelegationResponse, error) {
+func (w *TelemetryWrapper) FetchDelegationsFromLevel(ctx context.Context, level uint64) (model.TzktDelegationResponse, error) {
 	startTime := time.Now()
 	endpoint := "delegations_from_level"
 

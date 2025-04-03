@@ -25,7 +25,7 @@ func (m *Mock) FetchDelegations(ctx context.Context, limit, offset int) (model.T
 }
 
 // FetchDelegationsFromLevel fetches delegations from a specific level.
-func (m *Mock) FetchDelegationsFromLevel(ctx context.Context, level int64) (model.TzktDelegationResponse, error) {
+func (m *Mock) FetchDelegationsFromLevel(ctx context.Context, level uint64) (model.TzktDelegationResponse, error) {
 	args := m.Called(ctx, level)
 	return args.Get(0).(model.TzktDelegationResponse), args.Error(1)
 }

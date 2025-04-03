@@ -76,7 +76,7 @@ func (a *Adapter) FetchDelegations(ctx context.Context, limit int, offset int) (
 }
 
 // FetchDelegationsFromLevel fetches delegations from a specific level
-func (a *Adapter) FetchDelegationsFromLevel(ctx context.Context, level int64) (model.TzktDelegationResponse, error) {
+func (a *Adapter) FetchDelegationsFromLevel(ctx context.Context, level uint64) (model.TzktDelegationResponse, error) {
 	url := fmt.Sprintf("%s/v1/operations/delegations?level.gt=%d", a.apiURL, level)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {

@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -94,13 +95,14 @@ func Test_syncDelegations_SyncDelegations(t *testing.T) {
 			fields: fields{
 				dbAdapter: func() database.Adapter {
 					db := databasemock.New()
-					db.On("GetHighestBlockLevel", mock.Anything).Return(int64(100), nil)
+					db.On("GetHighestBlockLevel", mock.Anything).
+						Return(uint64(100), nil)
 					return db
 				}(),
 				logger: logrus.NewEntry(logrus.New()),
 				tzktApiAdapter: func() tzktapi.Adapter {
 					tzkt := tzktapimock.New()
-					tzkt.On("FetchDelegationsFromLevel", mock.Anything, int64(100)).
+					tzkt.On("FetchDelegationsFromLevel", mock.Anything, uint64(100)).
 						Return(model.TzktDelegationResponse{}, nil)
 					return tzkt
 				}(),
@@ -113,13 +115,14 @@ func Test_syncDelegations_SyncDelegations(t *testing.T) {
 			fields: fields{
 				dbAdapter: func() database.Adapter {
 					m := databasemock.New()
-					m.On("GetHighestBlockLevel", mock.AnythingOfType("*context.timerCtx")).Return(int64(100), nil)
+					m.On("GetHighestBlockLevel", mock.AnythingOfType("*context.timerCtx")).
+						Return(uint64(100), nil)
 					return m
 				}(),
 				logger: logrus.NewEntry(logrus.New()),
 				tzktApiAdapter: func() tzktapi.Adapter {
 					tzkt := tzktapimock.New()
-					tzkt.On("FetchDelegationsFromLevel", mock.AnythingOfType("*context.timerCtx"), int64(100)).
+					tzkt.On("FetchDelegationsFromLevel", mock.AnythingOfType("*context.timerCtx"), uint64(100)).
 						Return(model.TzktDelegationResponse{}, nil)
 					return tzkt
 				}(),
@@ -133,7 +136,7 @@ func Test_syncDelegations_SyncDelegations(t *testing.T) {
 				dbAdapter: func() database.Adapter {
 					m := databasemock.New()
 					m.On("GetHighestBlockLevel", mock.Anything).
-						Return(int64(0), fmt.Errorf("db error"))
+						Return(uint64(0), errors.New("db error"))
 					return m
 				}(),
 				logger: logrus.NewEntry(logrus.New()),
@@ -266,7 +269,7 @@ func Test_syncDelegations_syncIncrementalDelegations(t *testing.T) {
 	}
 	type args struct {
 		ctx   context.Context
-		level int64
+		level uint64
 	}
 	tests := []struct {
 		name    string
@@ -279,13 +282,14 @@ func Test_syncDelegations_syncIncrementalDelegations(t *testing.T) {
 			fields: fields{
 				dbAdapter: func() database.Adapter {
 					db := databasemock.New()
-					db.On("SaveDelegations", mock.Anything, mock.Anything).Return(nil)
+					db.On("SaveDelegations", mock.Anything, mock.Anything).
+						Return(nil)
 					return db
 				}(),
 				logger: logrus.NewEntry(logrus.New()),
 				tzktApiAdapter: func() tzktapi.Adapter {
 					tzkt := tzktapimock.New()
-					tzkt.On("FetchDelegationsFromLevel", mock.Anything, int64(100)).
+					tzkt.On("FetchDelegationsFromLevel", mock.Anything, uint64(100)).
 						Return(model.TzktDelegationResponse{
 							{
 								Status:    "applied",
@@ -319,7 +323,8 @@ func Test_syncDelegations_syncIncrementalDelegations(t *testing.T) {
 						default:
 							return false
 						}
-					}), int64(100)).Return(model.TzktDelegationResponse{}, context.Canceled)
+					}), uint64(100)).
+						Return(model.TzktDelegationResponse{}, context.Canceled)
 					return m
 				}(),
 			},
@@ -340,7 +345,7 @@ func Test_syncDelegations_syncIncrementalDelegations(t *testing.T) {
 				logger:    logrus.NewEntry(logrus.New()),
 				tzktApiAdapter: func() tzktapi.Adapter {
 					m := tzktapimock.New()
-					m.On("FetchDelegationsFromLevel", mock.Anything, int64(100)).
+					m.On("FetchDelegationsFromLevel", mock.Anything, uint64(100)).
 						Return(model.TzktDelegationResponse{}, fmt.Errorf("api error"))
 					return m
 				}(),

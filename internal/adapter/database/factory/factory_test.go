@@ -54,7 +54,7 @@ func Test_New(t *testing.T) {
 			name: "Nominal case - PSQL",
 			cfg: Config{
 				Impl: ImplPSQL,
-				psql: &databasesql.Config{
+				PSQL: &databasesql.Config{
 					Host:     "localhost",
 					Port:     5432,
 					User:     "user",
@@ -69,7 +69,7 @@ func Test_New(t *testing.T) {
 			name: "Error case - Missing PSQL config",
 			cfg: Config{
 				Impl: ImplPSQL,
-				psql: nil,
+				PSQL: nil,
 			},
 			wantErr: true,
 		},

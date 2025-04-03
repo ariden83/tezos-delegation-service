@@ -45,22 +45,22 @@ func (m *Mock) GetLatestDelegation(ctx context.Context) (*model.Delegation, erro
 	return args.Get(0).(*model.Delegation), args.Error(1)
 }
 
-// GetDelegations returns delegations with pagination and optional year filter.
-func (m *Mock) GetDelegations(ctx context.Context, page int, limit int, year int) ([]model.Delegation, int, error) {
-	args := m.Called(ctx, page, limit, year)
+// GetDelegations returns delegations with pagination and optional year and maxDelegationID filters.
+func (m *Mock) GetDelegations(ctx context.Context, page uint32, limit, year uint16, maxDelegationID uint64) ([]model.Delegation, int, error) {
+	args := m.Called(ctx, page, limit, year, maxDelegationID)
 	return args.Get(0).([]model.Delegation), args.Int(1), args.Error(2)
 }
 
 // CountDelegations returns the total count of delegations with optional year filter.
-func (m *Mock) CountDelegations(ctx context.Context, year int) (int, error) {
+func (m *Mock) CountDelegations(ctx context.Context, year uint16) (int, error) {
 	args := m.Called(ctx, year)
 	return args.Int(0), args.Error(1)
 }
 
 // GetHighestBlockLevel returns the highest block level in the repository.
-func (m *Mock) GetHighestBlockLevel(ctx context.Context) (int64, error) {
+func (m *Mock) GetHighestBlockLevel(ctx context.Context) (uint64, error) {
 	args := m.Called(ctx)
-	return args.Get(0).(int64), args.Error(1)
+	return args.Get(0).(uint64), args.Error(1)
 }
 
 // Close closes the database connection.

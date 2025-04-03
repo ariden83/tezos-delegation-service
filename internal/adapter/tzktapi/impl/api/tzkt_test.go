@@ -138,7 +138,7 @@ func Test_Adapter_FetchDelegationsFromLevel(t *testing.T) {
 	}
 	type args struct {
 		ctx   context.Context
-		level int64
+		level uint64
 	}
 	tests := []struct {
 		name    string

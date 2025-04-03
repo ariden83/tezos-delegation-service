@@ -39,8 +39,8 @@ func New(tzktAdapter tzktapi.Adapter, dbAdapter database.Adapter, pollingInterva
 }
 
 // Run starts the polling process for Tezos delegations.
-func (p *Poller) Run() {
-	ctx, cancel := context.WithCancel(context.Background())
+func (p *Poller) Run(ctx context.Context) {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	highestLevel, err := p.dbAdapter.GetHighestBlockLevel(ctx)
