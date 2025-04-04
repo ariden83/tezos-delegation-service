@@ -1,8 +1,6 @@
 module github.com/tezos-delegation-service
 
-go 1.21
-
-toolchain go1.24.1
+go 1.20
 
 replace (
 	github.com/rogpeppe/go-internal => github.com/rogpeppe/go-internal v1.11.0

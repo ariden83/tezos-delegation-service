@@ -19,12 +19,13 @@ database:
     password: "postgres"
     dbname: "tezos_delegations"
     sslmode: disable
+    table_delegations: "app.delegations"
 
 tzktapi:
   impl: api
   api:
     url: https://api.tzkt.io
-  polling_interval: 60
+  polling_interval: 5
 
 metrics:
   impl: prometheus

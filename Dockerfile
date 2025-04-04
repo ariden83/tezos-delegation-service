@@ -32,6 +32,7 @@ RUN apk --no-cache add ca-certificates tzdata postgresql-client
 COPY --from=builder /app/tezos-delegation-service /app/tezos-delegation-service
 COPY --from=builder /app/config /app/config
 COPY --from=builder /app/scripts /app/scripts
-RUN mkdir -p /app/data
+
+# Entrypoint personnalisé
 EXPOSE 8080
 CMD ["./tezos-delegation-service"]

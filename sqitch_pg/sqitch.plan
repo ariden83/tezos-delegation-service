@@ -1,6 +1,6 @@
 %syntax-version=1.0.0
 %project=tezos-delegation-service
-%uri=https://github.com/tezos-delegation-service
+%uri=https://github.com/ariden83/tezos-delegation-service
 
-01_appschema 2025-03-29T12:00:00Z Developer <dev@example.com> # Add schema for delegation service
-02_delegations [01_appschema] 2025-03-29T12:00:00Z Developer <dev@example.com> # Create delegations table with optimized types
+01_appschema 2025-04-04T12:00:00Z Ariden <adrienparrochia@gmail.com> # Add schema for delegation service
+02_delegations [01_appschema] 2025-04-29T04:00:00Z Ariden <adrienparrochia@gmail.com> # Create delegations table with optimized types

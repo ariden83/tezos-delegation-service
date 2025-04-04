@@ -6,9 +6,10 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS app.delegations (
     id SERIAL PRIMARY KEY,
     delegator TEXT NOT NULL,
-    timestamp BIGINT NOT NULL, -- Stockage en UNIX timestamp (seconds)
-    amount DOUBLE PRECISION NOT NULL, -- Stockage des montants en nombre réel
-    level BIGINT NOT NULL, -- Stockage en BIGINT
+    delegate TEXT NOT NULL DEFAULT '',
+    timestamp BIGINT NOT NULL,
+    amount DOUBLE PRECISION NOT NULL,
+    level BIGINT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

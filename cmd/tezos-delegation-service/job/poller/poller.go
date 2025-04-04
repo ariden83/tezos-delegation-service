@@ -33,6 +33,7 @@ func New(tzktAdapter tzktapi.Adapter, dbAdapter database.Adapter, pollingInterva
 		dbAdapter:         dbAdapter,
 		logger:            logger.WithField("component", "poller"),
 		pollingInterval:   pollingInterval,
+		pollingWg:         &sync.WaitGroup{},
 		tzktAdapter:       tzktAdapter,
 		ucSyncDelegations: usecase.NewSyncDelegationsFunc(tzktAdapter, dbAdapter, metricClient, logger),
 	}
@@ -62,13 +63,19 @@ func (p *Poller) Run(ctx context.Context) {
 	ticker := time.NewTicker(p.pollingInterval)
 	defer ticker.Stop()
 
+	if err := p.ucSyncDelegations(ctx); err != nil {
+		p.logger.Errorf("Error in initial sync: %v", err)
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
 			p.logger.Info("Polling stopped")
 			return
 		case <-ticker.C:
-			p.StartPolling(ctx)
+			if err := p.ucSyncDelegations(ctx); err != nil {
+				p.logger.Errorf("Error syncing delegations: %v", err)
+			}
 		}
 	}
 }

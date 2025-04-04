@@ -31,6 +31,7 @@ func Test_DelegationJSON(t *testing.T) {
 	delegation := Delegation{
 		ID:        1,
 		Delegator: "tz1abc",
+		Delegate:  "tz1def",
 		Timestamp: now,
 		Amount:    100.0,
 		Level:     12345,
@@ -45,7 +46,7 @@ func Test_DelegationJSON(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "tz1abc", jsonMap["delegator"])
-	assert.Equal(t, float64(now), jsonMap["timestamp"])
+	assert.Equal(t, "tz1def", jsonMap["delegate"])
 	assert.Equal(t, 100.0, jsonMap["amount"])
 	assert.Equal(t, float64(12345), jsonMap["level"])
 

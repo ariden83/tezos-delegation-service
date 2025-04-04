@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tezos-delegation-api
+  name: tezos-delegation-service
   namespace: tezos-delegation
   labels:
-    app: tezos-delegation-api
+    app: tezos-delegation-service
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: tezos-delegation-api
+      app: tezos-delegation-service
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -18,22 +18,22 @@ spec:
   template:
     metadata:
       labels:
-        app: tezos-delegation-api
+        app: tezos-delegation-service
     spec:
       containers:
-      - name: tezos-delegation-api
-        image: tezos-delegation-api:latest
+      - name: tezos-delegation-service
+        image: tezos-delegation-service:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
           name: http
         resources:
           limits:
-            cpu: "500m"
-            memory: "512Mi"
+            cpu: "1000m"
+            memory: "1Gi"
           requests:
-            cpu: "200m"
-            memory: "256Mi"
+            cpu: "300m"
+            memory: "512Mi"
         env:
         - name: TZ
           value: "UTC"

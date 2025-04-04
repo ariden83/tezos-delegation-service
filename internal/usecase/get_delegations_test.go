@@ -86,7 +86,7 @@ func Test_getDelegations_GetDelegations(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name: "Nominal case",
+			name: "Nominal",
 			dbAdapter: func() database.Adapter {
 				mockDB := dbmock.New()
 				delegations := []model.Delegation{
@@ -119,12 +119,13 @@ func Test_getDelegations_GetDelegations(t *testing.T) {
 						ID:        1,
 						Delegator: "tz1...",
 						Delegate:  "tz2...",
-						Amount:    100.0,
+						Amount:    100000000.0, // Converti en mutez
 						Timestamp: func() int64 {
 							t, _ := time.Parse(time.RFC3339, "2025-01-01T00:00:00Z")
 							return t.Unix()
 						}(),
-						Level: 1000,
+						TimestampTime: "2025-01-01T00:00:00Z",
+						Level:         1000,
 					},
 				},
 				Pagination: model.PaginationInfo{
@@ -147,8 +148,11 @@ func Test_getDelegations_GetDelegations(t *testing.T) {
 						Delegator: "tz1...",
 						Delegate:  "tz2...",
 						Amount:    100.0,
-						Timestamp: time.Now().Unix(),
-						Level:     1000,
+						Timestamp: func() int64 {
+							t, _ := time.Parse(time.RFC3339, "2025-01-01T00:00:00Z")
+							return t.Unix()
+						}(),
+						Level: 1000,
 					},
 				}
 				mockDB.On("GetDelegations", mock.Anything, uint32(2), uint16(10), uint16(2025), uint64(100)).
@@ -168,9 +172,13 @@ func Test_getDelegations_GetDelegations(t *testing.T) {
 						ID:        50,
 						Delegator: "tz1...",
 						Delegate:  "tz2...",
-						Amount:    100.0,
-						Timestamp: time.Now().Unix(),
-						Level:     1000,
+						Amount:    100000000.0,
+						Timestamp: func() int64 {
+							t, _ := time.Parse(time.RFC3339, "2025-01-01T00:00:00Z")
+							return t.Unix()
+						}(),
+						TimestampTime: "2025-01-01T00:00:00Z",
+						Level:         1000,
 					},
 				},
 				Pagination: model.PaginationInfo{

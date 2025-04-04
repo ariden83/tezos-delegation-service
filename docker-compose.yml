@@ -8,7 +8,7 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - db
+      - sqitch
     environment:
       - TZ=UTC
       - DB_HOST=db
@@ -19,6 +19,10 @@ services:
     restart: on-failure
     volumes:
       - ./config:/app/config
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "sleep 50 &&
+       ./tezos-delegation-service"
 
   swagger-ui:
     image: swaggerapi/swagger-ui:latest
@@ -40,10 +44,21 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./docker-init/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
-      - ./sqitch_pg:/app/sqitch_pg
+      - psql_datas:/var/lib/postgresql/data
     restart: unless-stopped
 
+  sqitch:
+    image: sqitch/sqitch
+    container_name: sqitch_runner
+    depends_on:
+      - db
+    volumes:
+      - ./sqitch_pg:/repo
+    working_dir: /repo
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "sleep 5 &&
+       sqitch deploy db:pg://postgres:postgres@db/tezos_delegations"
+
 volumes:
-  postgres_data:
+  psql_datas:

@@ -19,12 +19,14 @@ import (
 // GetDelegationHandler handles delegation API requests.
 type GetDelegationHandler struct {
 	getDelegationsFunc usecase.GetDelegationsFunc
+	paginationLimit    uint16
 }
 
 // NewGetDelegationHandler creates a new delegation handler.
-func NewGetDelegationHandler(getDelegationsFunc usecase.GetDelegationsFunc) *GetDelegationHandler {
+func NewGetDelegationHandler(paginationLimit uint16, getDelegationsFunc usecase.GetDelegationsFunc) *GetDelegationHandler {
 	return &GetDelegationHandler{
 		getDelegationsFunc: getDelegationsFunc,
+		paginationLimit:    paginationLimit,
 	}
 }
 
@@ -80,7 +82,7 @@ func (h *GetDelegationHandler) validateRequestParams(c *gin.Context) (int, int, 
 		return 0, 0, "", errors.New("invalid page number")
 	}
 
-	limit, err := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", fmt.Sprintf("%d", h.paginationLimit)))
 	if err != nil || limit < 1 || limit > 100 {
 		return 0, 0, "", fmt.Errorf("limit must be between 1 and 100, got %d", limit)
 	}
@@ -118,9 +120,11 @@ func (h *GetDelegationHandler) setCacheHeaders(c *gin.Context, year string) {
 	} else {
 		c.Header("Cache-Control", "public, max-age=300") // 5m cache
 	}
+	c.Header("Vary", "X-Max-Delegation-ID")
 }
 
 // setETagHeader sets the ETag header for the response.
+// It takes into account the X-Max-Delegation-ID header to ensure proper caching.
 func (h *GetDelegationHandler) setETagHeader(c *gin.Context, response *model.DelegationResponse) {
 	jsonData, err := json.Marshal(response)
 	if err != nil {
@@ -128,8 +132,32 @@ func (h *GetDelegationHandler) setETagHeader(c *gin.Context, response *model.Del
 		c.Header("ETag", etag)
 		return
 	}
-	hash := sha256.Sum256(jsonData)
-	etag := `"` + hex.EncodeToString(hash[:]) + `"`
+
+	hasher := sha256.New()
+	hasher.Write(jsonData)
+
+	maxDelegationIDHeader := c.GetHeader("X-Max-Delegation-ID")
+	hasher.Write([]byte("X-Max-Delegation-ID:" + maxDelegationIDHeader))
+
+	page := c.Query("page")
+	if page == "" {
+		page = "1"
+	}
+	hasher.Write([]byte("page:" + page))
+
+	limit := c.Query("limit")
+	if limit == "" {
+		limit = fmt.Sprintf("%d", h.paginationLimit)
+	}
+	hasher.Write([]byte("limit:" + limit))
+
+	year := c.Query("year")
+	if year != "" {
+		hasher.Write([]byte("year:" + year))
+	}
+
+	hashBytes := hasher.Sum(nil)
+	etag := `"` + hex.EncodeToString(hashBytes) + `"`
 	c.Header("ETag", etag)
 }
 

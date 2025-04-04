@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/tezos-delegation-service/cmd/tezos-delegation-service/api/http"
 	"github.com/tezos-delegation-service/cmd/tezos-delegation-service/config"
@@ -47,7 +48,8 @@ func main() {
 
 	server := http.NewServer(cfg.Server.Port, cfg.Pagination.Limit, dbAdapter, metricsClient, l).SetupRoutes()
 
-	go (poller.New(tzktAPIAdapter, dbAdapter, cfg.TZKTApiAdapter.PollingInterval, metricsClient, l)).Run(context.Background())
+	pollingDuration := time.Duration(cfg.TZKTApiAdapter.PollingInterval) * time.Minute
+	go (poller.New(tzktAPIAdapter, dbAdapter, pollingDuration, metricsClient, l)).Run(context.Background())
 
 	if err := server.Start(); err != nil {
 		l.Fatalf("Failed to start server: %v", err)

@@ -2,6 +2,54 @@
 
 A Go service that collects and exposes delegations made on the Tezos protocol through a RESTful API, utilizing data from the TzKT API.
 
+## Requirements:
+
+The solution is composed of two parts:
+
+- It must poll delegations:
+   - Retrieve delegations from this Tzkt API endpoint: https://api.tzkt.io/#operation/Operations_GetDelegations
+   - For each delegation, save the following information: sender's address, timestamp, amount, and block height.
+   - The data aggregation must store the delegations data in a persistent store of your choice.
+   - It must have all data since since Tezos launched in 2018.
+   - The service must continuously poll new delegations made on the network.
+- It must expose the collected data through a public API endpoint:
+   - The endpoint must be available at: `GET /xtz/delegations`
+   - The API must read data from the store.
+   - The response format must be:
+
+       ```jsx
+       {
+         "data": [ 
+           {
+               "timestamp": "2022-05-05T06:29:14Z",
+               "amount": "125896",
+               "delegator": "tz1a1SAaXRt9yoGMx29rh9FsBF4UzmvojdTL",
+               "level": "2338084"
+           },
+           {
+               "timestamp": "2021-05-07T14:48:07Z",
+               "amount": "9856354",
+               "delegator": "KT1JejNYjmQYh8yw95u5kfQDRuxJcaUPjUnf",
+               "level": "1461334"
+           }
+         ],
+       }
+       ```
+
+   - The sender’s address is the delegator.
+   - The delegations must be listed most recent first.
+   - The endpoint takes one optional query parameter `year`, which is specified in the format YYYY and will result in the data being filtered for that year only.
+   - The result must be paginated 50 at a time.
+
+### Additional notes
+
+- The code must be tested.
+- How to run the solution locally must be simple and documented.
+- The solution must thrive to be simple while fulfilling all the requirements.
+
+Please share a archive ( `zip` , `tar` or equivalent) of your git project via email.
+
+
 ## Features
 
 - Continuously polls and stores Tezos delegations from TzKT API
@@ -31,7 +79,7 @@ The easiest way to get started is using Docker Compose:
 
 3. Access the services:
    - **REST API**: http://localhost:8080
-   - **Swagger UI**: http://localhost:8081
+     - **Swagger UI**: http://localhost:8081/swagger/
    - **PostgreSQL**: localhost:5432 (username: postgres, password: postgres, database: tezos_delegations)
 
 4. To stop all services:
@@ -43,7 +91,7 @@ The easiest way to get started is using Docker Compose:
 
 After starting the services with `make docker-compose-up`, you can:
 
-1. Open http://localhost:8081 in your web browser
+1. Open http://localhost:8081/swagger/ in your web browser
 2. The Swagger UI will display all available API endpoints with documentation
 3. Try out the endpoints directly from the UI:
    - Click on an endpoint (e.g., `/xtz/delegations`)

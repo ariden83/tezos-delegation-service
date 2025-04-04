@@ -14,21 +14,17 @@ import (
 	"github.com/tezos-delegation-service/internal/model"
 )
 
-const (
-	// TableDelegations is the name of the delegations table.
-	TableDelegations = "delegations"
-)
-
 // Config represents database configuration.
 type Config struct {
 	// DBMigrateFile string `mapstructure:"db_migrate_file"`
-	Driver   string `mapstructure:"driver"`
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	User     string `mapstructure:"user"`
-	Password Secret `mapstructure:"password"`
-	DBName   string `mapstructure:"dbname"`
-	SSLMode  string `mapstructure:"sslmode"`
+	Driver           string `mapstructure:"driver"`
+	Host             string `mapstructure:"host"`
+	Port             int    `mapstructure:"port"`
+	User             string `mapstructure:"user"`
+	Password         Secret `mapstructure:"password"`
+	DBName           string `mapstructure:"dbname"`
+	SSLMode          string `mapstructure:"sslmode"`
+	TableDelegations string `mapstructure:"table_delegations"`
 }
 
 type text interface {
@@ -57,7 +53,8 @@ func (s Secret) MarshalText() (text []byte, err error) {
 
 // psql implements DelegationRepository using SQL database.
 type psql struct {
-	db *sqlx.DB
+	db               *sqlx.DB
+	tableDelegations string
 }
 
 // New creates a new SQL delegation repository.
@@ -70,7 +67,8 @@ func New(cfg Config) (database.Adapter, error) {
 	}
 
 	return &psql{
-		db: db,
+		db:               db,
+		tableDelegations: cfg.TableDelegations,
 	}, nil
 }
 
@@ -82,11 +80,11 @@ func (p *psql) Ping() error {
 // SaveDelegation saves a delegation to the database.
 func (p *psql) SaveDelegation(ctx context.Context, delegation *model.Delegation) error {
 	query := `
-		INSERT INTO ` + TableDelegations + ` (delegator, timestamp, amount, level)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO ` + p.tableDelegations + ` (delegator, delegate, timestamp, amount, level)
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT DO NOTHING
 	`
-	_, err := p.db.ExecContext(ctx, query, delegation.Delegator, delegation.Timestamp, delegation.Amount, delegation.Level)
+	_, err := p.db.ExecContext(ctx, query, delegation.Delegator, delegation.Delegate, delegation.Timestamp, delegation.Amount, delegation.Level)
 	return err
 }
 
@@ -98,13 +96,13 @@ func (p *psql) SaveDelegations(ctx context.Context, delegations []*model.Delegat
 	}
 
 	query := `
-		INSERT INTO ` + TableDelegations + ` (delegator, timestamp, amount, level)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO ` + p.tableDelegations + ` (delegator, delegate, timestamp, amount, level)
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT DO NOTHING
 	`
 
 	for _, delegation := range delegations {
-		_, err := tx.ExecContext(ctx, query, delegation.Delegator, delegation.Timestamp, delegation.Amount, delegation.Level)
+		_, err := tx.ExecContext(ctx, query, delegation.Delegator, delegation.Delegate, delegation.Timestamp, delegation.Amount, delegation.Level)
 		if err != nil {
 			if errRollBack := tx.Rollback(); errRollBack != nil {
 				return errors.New("query execution error: " + err.Error() + ", rollback error: " + errRollBack.Error())
@@ -120,8 +118,8 @@ func (p *psql) SaveDelegations(ctx context.Context, delegations []*model.Delegat
 func (p *psql) GetLatestDelegation(ctx context.Context) (*model.Delegation, error) {
 	var delegation model.Delegation
 	query := `
-		SELECT id, delegator, timestamp, amount, level, created_at
-		FROM ` + TableDelegations + `
+		SELECT id, delegator, delegate, timestamp, amount, level, created_at
+		FROM ` + p.tableDelegations + `
 		ORDER BY level DESC
 		LIMIT 1
 	`
@@ -170,8 +168,8 @@ func (p *psql) GetDelegations(ctx context.Context, page uint32, limit, year uint
 	}
 
 	query = `
-		SELECT id, delegator, timestamp, amount, level, created_at
-		FROM ` + TableDelegations + `
+		SELECT id, delegator, delegate, timestamp, amount, level, created_at
+		FROM ` + p.tableDelegations + `
 		` + whereClause + `
 		ORDER BY timestamp DESC
 		LIMIT $` + strconv.Itoa(argIndex) + ` OFFSET $` + strconv.Itoa(argIndex+1) + `
@@ -203,14 +201,14 @@ func (p *psql) CountDelegations(ctx context.Context, year uint16) (int, error) {
 
 		query = `
 			SELECT COUNT(*) 
-			FROM ` + TableDelegations + `
+			FROM ` + p.tableDelegations + `
 			WHERE timestamp >= $1 AND timestamp < $2
 		`
 		args = []interface{}{startDate, endDate}
 	} else {
 		query = `
 			SELECT COUNT(*) 
-			FROM delegations
+			FROM ` + p.tableDelegations + `
 		`
 	}
 
@@ -225,7 +223,7 @@ func (p *psql) CountDelegations(ctx context.Context, year uint16) (int, error) {
 // GetHighestBlockLevel returns the highest block level in the database.
 func (p *psql) GetHighestBlockLevel(ctx context.Context) (uint64, error) {
 	var level uint64
-	err := p.db.GetContext(ctx, &level, "SELECT COALESCE(MAX(level), 0) FROM "+TableDelegations)
+	err := p.db.GetContext(ctx, &level, "SELECT COALESCE(MAX(level), 0) FROM "+p.tableDelegations)
 	return level, err
 }
 

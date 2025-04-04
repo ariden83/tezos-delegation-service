@@ -575,7 +575,7 @@ func Test_NewGetDelegationHandler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewGetDelegationHandler(tt.getDelegationsFunc)
+			handler := NewGetDelegationHandler(uint16(50), tt.getDelegationsFunc)
 			assert.NotNil(t, handler)
 
 			if tt.name == "nominal case" {

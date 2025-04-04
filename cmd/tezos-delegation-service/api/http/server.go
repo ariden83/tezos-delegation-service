@@ -42,7 +42,7 @@ func NewServer(port, defaultPaginationLimit uint16, dbAdapter database.Adapter, 
 	}
 
 	h := &handlers{
-		getDelegationHandler: NewGetDelegationHandler(u.getDelegationsFunc),
+		getDelegationHandler: NewGetDelegationHandler(defaultPaginationLimit, u.getDelegationsFunc),
 	}
 
 	return &Server{
@@ -55,8 +55,26 @@ func NewServer(port, defaultPaginationLimit uint16, dbAdapter database.Adapter, 
 	}
 }
 
+// corsMiddleware sets up CORS headers for the HTTP server.
+func (s *Server) corsMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Max-Delegation-ID, X-Request-ID")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	}
+}
+
 // SetupRoutes sets up the API routes.
 func (s *Server) SetupRoutes() *Server {
+	s.router.Use(s.corsMiddleware())
+
 	s.router.Use(metrics.Middleware(s.metrics))
 
 	s.router.GET("/xtz/delegations", s.handlers.getDelegationHandler.GetDelegations)

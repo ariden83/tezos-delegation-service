@@ -56,10 +56,12 @@ func (uc *getDelegations) GetDelegations(ctx context.Context, pageStr, limitStr,
 	}
 
 	var maxID int64 = 0
-	for _, delegation := range delegations {
+	for i, delegation := range delegations {
 		if delegation.ID > maxID {
 			maxID = delegation.ID
 		}
+		delegations[i].TimestampTime = time.Unix(delegation.Timestamp, 0).UTC().Format(time.RFC3339)
+		delegations[i].Amount = delegation.Amount * 1000000.0 // Convert tez to mutez
 	}
 
 	pageInt := int(page)
