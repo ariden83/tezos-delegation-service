@@ -1,53 +1,10 @@
 # Tezos Delegation Service
 
 A Go service that collects and exposes delegations made on the Tezos protocol through a RESTful API, utilizing data from the TzKT API.
-
-## Requirements:
-
-The solution is composed of two parts:
-
-- It must poll delegations:
-   - Retrieve delegations from this Tzkt API endpoint: https://api.tzkt.io/#operation/Operations_GetDelegations
-   - For each delegation, save the following information: sender's address, timestamp, amount, and block height.
-   - The data aggregation must store the delegations data in a persistent store of your choice.
-   - It must have all data since since Tezos launched in 2018.
-   - The service must continuously poll new delegations made on the network.
-- It must expose the collected data through a public API endpoint:
-   - The endpoint must be available at: `GET /xtz/delegations`
-   - The API must read data from the store.
-   - The response format must be:
-
-       ```jsx
-       {
-         "data": [ 
-           {
-               "timestamp": "2022-05-05T06:29:14Z",
-               "amount": "125896",
-               "delegator": "tz1a1SAaXRt9yoGMx29rh9FsBF4UzmvojdTL",
-               "level": "2338084"
-           },
-           {
-               "timestamp": "2021-05-07T14:48:07Z",
-               "amount": "9856354",
-               "delegator": "KT1JejNYjmQYh8yw95u5kfQDRuxJcaUPjUnf",
-               "level": "1461334"
-           }
-         ],
-       }
-       ```
-
-   - The sender’s address is the delegator.
-   - The delegations must be listed most recent first.
-   - The endpoint takes one optional query parameter `year`, which is specified in the format YYYY and will result in the data being filtered for that year only.
-   - The result must be paginated 50 at a time.
-
-### Additional notes
-
-- The code must be tested.
-- How to run the solution locally must be simple and documented.
-- The solution must thrive to be simple while fulfilling all the requirements.
-
-Please share a archive ( `zip` , `tar` or equivalent) of your git project via email.
+This service is designed to be lightweight and efficient, making it easy to integrate into existing systems or use as a standalone application.
+It continuously polls the TzKT API for delegation data and stores it in a PostgreSQL database, providing a simple API for querying this data.
+The service is built with a focus on performance, reliability, and ease of use, making it suitable for both development and production environments.
+This project is part of the Tezos ecosystem and aims to provide developers and users with easy access to delegation data, enabling better insights into the Tezos network.
 
 
 ## Features

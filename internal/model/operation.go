@@ -47,6 +47,6 @@ type Operation struct {
 
 // OperationsResponse is the response format for the API.
 type OperationsResponse struct {
-	Data       []Operation    `json:"data"`
+	Operations []Operation    `json:"data"`
 	Pagination PaginationInfo `json:"-,omitempty"`
 }

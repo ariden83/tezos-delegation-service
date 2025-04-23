@@ -78,7 +78,7 @@ func (uc *getDelegations) GetDelegations(ctx context.Context, pageStr, limitStr,
 	}
 
 	return &model.DelegationsResponse{
-		Data:            delegations,
+		Delegations:     delegations,
 		Pagination:      paginationInfo,
 		MaxDelegationID: maxID,
 	}, nil
@@ -155,7 +155,7 @@ func (uc *getDelegations) withMonitorer(getDelegations GetDelegationsFunc, metri
 
 				metricsClient.RecordServiceOperation("GetDelegations", "UseCase", duration, err)
 				if err == nil && result != nil {
-					metricsClient.RecordDelegationsFetched(len(result.Data))
+					metricsClient.RecordDelegationsFetched(len(result.Delegations))
 				}
 			}
 		}()

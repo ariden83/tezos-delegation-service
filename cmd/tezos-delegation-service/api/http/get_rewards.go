@@ -34,42 +34,74 @@ func NewGetRewardsHandler(paginationLimit uint16, getRewardsFunc usecase.GetRewa
 func (h *GetRewardsHandler) GetRewards(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	page, limit, err := h.validateRequestParams(c)
+	fromDate, toDate, wallet, backer, err := h.validateRequestParams(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	response, err := h.getRewardsFunc(ctx, strconv.Itoa(page), strconv.Itoa(limit))
+	input := usecase.GetRewardsInput{
+		FromDate: fromDate,
+		ToDate:   toDate,
+		Wallet:   wallet,
+		Backer:   backer,
+	}
+	response, err := h.getRewardsFunc(ctx, input)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	h.setRequestIDHeader(c)
-	h.setETagHeader(c, response)
+	/* h.setETagHeader(c, response)
 
 	if c.GetHeader("If-None-Match") == c.Writer.Header().Get("ETag") {
 		c.Status(http.StatusNotModified)
 		return
-	}
+	}*/
 
 	c.JSON(http.StatusOK, response)
 }
 
 // validateRequestParams validates and parses request parameters.
-func (h *GetRewardsHandler) validateRequestParams(c *gin.Context) (int, int, error) {
-	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
-	if err != nil || page < 1 {
-		return 0, 0, errors.New("invalid page number")
+func (h *GetRewardsHandler) validateRequestParams(c *gin.Context) (fromDate, toDate *time.Time, wallet, backer model.WalletAddress, err error) {
+
+	if fromStr := c.DefaultQuery("from", ""); fromStr != "" {
+		t, errParsing := time.Parse("2006-01-02", fromStr)
+		if errParsing != nil {
+			err = errors.New("invalid 'from' date format. Use YYYY-MM-DD")
+			return
+		}
+		fromDate = &t
 	}
 
-	limit, err := strconv.Atoi(c.DefaultQuery("limit", fmt.Sprintf("%d", h.paginationLimit)))
-	if err != nil || limit < 1 || limit > 100 {
-		return 0, 0, fmt.Errorf("limit must be between 1 and 100, got %d", limit)
+	if toStr := c.DefaultQuery("to", ""); toStr != "" {
+		t, errParsing := time.Parse("2006-01-02", toStr)
+		if errParsing != nil {
+			err = errors.New("invalid 'to' date format. Use YYYY-MM-DD")
+			return
+		}
+		toDate = &t
 	}
 
-	return page, limit, nil
+	walletStr := c.DefaultQuery("wallet", "")
+	wallet = model.WalletAddress(walletStr)
+	if wallet == "" {
+		err = errors.New("missing wallet address")
+		return
+	} else if wallet.IsValid() == false {
+		err = fmt.Errorf("invalid wallet address: %s", wallet.String())
+	}
+
+	backerStr := c.DefaultQuery("backer", "")
+	backer = model.WalletAddress(backerStr)
+	if backer == "" {
+		err = errors.New("missing backer address")
+	} else if backer.IsValid() == false {
+		err = fmt.Errorf("invalid backer address: %s", backer.String())
+	}
+
+	return
 }
 
 // setPaginationHeaders sets pagination headers for the response.

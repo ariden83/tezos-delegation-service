@@ -35,13 +35,22 @@ func NewGetOperationsHandler(paginationLimit uint16, getOperationsFunc usecase.G
 func (h *GetOperationsHandler) GetOperations(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	page, limit, operationType, wallet, baker, err := h.validateRequestParams(c)
+	page, limit, fromDate, toDate, operationType, wallet, backer, err := h.validateRequestParams(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	response, err := h.getOperationsFunc(ctx, strconv.Itoa(page), strconv.Itoa(limit), operationType, wallet, baker)
+	input := usecase.GetOperationsInput{
+		FromDate: fromDate,
+		ToDate:   toDate,
+		Page:     strconv.Itoa(page),
+		Limit:    strconv.Itoa(limit),
+		Type:     operationType,
+		Wallet:   wallet,
+		Backer:   backer,
+	}
+	response, err := h.getOperationsFunc(ctx, input)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -49,36 +58,46 @@ func (h *GetOperationsHandler) GetOperations(c *gin.Context) {
 
 	h.setPaginationHeaders(c, response.Pagination)
 	h.setRequestIDHeader(c)
-	h.setETagHeader(c, response)
+	/* h.setETagHeader(c, response)
 
 	if c.GetHeader("If-None-Match") == c.Writer.Header().Get("ETag") {
 		c.Status(http.StatusNotModified)
 		return
-	}
+	}*/
 
 	c.JSON(http.StatusOK, response)
 }
 
 // validateRequestParams validates and parses request parameters.
-func (h *GetOperationsHandler) validateRequestParams(c *gin.Context) (page int, limit int, operationType model.OperationType, wallet model.WalletAddress, backer model.WalletAddress, err error) {
+func (h *GetOperationsHandler) validateRequestParams(c *gin.Context) (page, limit int, fromDate, toDate *time.Time, operationType model.OperationType, wallet, backer model.WalletAddress, err error) {
 	page, err = strconv.Atoi(c.DefaultQuery("page", "1"))
 	if err != nil || page < 1 {
 		err = errors.New("invalid page number")
 		return
 	}
 
+	if fromStr := c.DefaultQuery("from", ""); fromStr != "" {
+		t, errParsing := time.Parse("2006-01-02", fromStr)
+		if errParsing != nil {
+			err = errors.New("invalid 'from' date format. Use YYYY-MM-DD")
+			return
+		}
+		fromDate = &t
+	}
+
+	if toStr := c.DefaultQuery("to", ""); toStr != "" {
+		t, errParsing := time.Parse("2006-01-02", toStr)
+		if errParsing != nil {
+			err = errors.New("invalid 'to' date format. Use YYYY-MM-DD")
+			return
+		}
+		toDate = &t
+	}
+
 	limit, err = strconv.Atoi(c.DefaultQuery("limit", fmt.Sprintf("%d", h.paginationLimit)))
 	if err != nil || limit < 1 || limit > 100 {
 		err = fmt.Errorf("limit must be between 1 and 100, got %d", limit)
 		return
-	}
-
-	year := c.DefaultQuery("year", "")
-	if year != "" {
-		_, err := strconv.Atoi(year)
-		if err != nil {
-			err = errors.New("invalid year format")
-		}
 	}
 
 	operationTypeStr := c.DefaultQuery("type", "")

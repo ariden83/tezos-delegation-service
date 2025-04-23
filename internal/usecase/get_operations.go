@@ -19,16 +19,17 @@ type getOperations struct {
 
 // GetOperationsInput defines the input structure for fetching delegations.
 type GetOperationsInput struct {
-	// @todo
-	Page   string
-	Limit  string
-	Wallet model.WalletAddress
-	Backer model.WalletAddress
-	Type   model.OperationType
+	FromDate *time.Time
+	ToDate   *time.Time
+	Page     string
+	Limit    string
+	Wallet   model.WalletAddress
+	Backer   model.WalletAddress
+	Type     model.OperationType
 }
 
 // GetOperationsFunc defines the function signature for fetching delegations.
-type GetOperationsFunc func(ctx context.Context, pageStr, limitStr string, operationType model.OperationType, wallet, backer model.WalletAddress) (*model.OperationsResponse, error)
+type GetOperationsFunc func(ctx context.Context, input GetOperationsInput) (*model.OperationsResponse, error)
 
 // NewGetOperationsFunc creates a new instance of getOperations.
 func NewGetOperationsFunc(defaultLimit uint16, adapter database.Adapter, metricsClient metrics.Adapter) GetOperationsFunc {
@@ -40,18 +41,18 @@ func NewGetOperationsFunc(defaultLimit uint16, adapter database.Adapter, metrics
 }
 
 // GetOperations returns delegations with pagination and optional year filter.
-func (uc *getOperations) GetOperations(ctx context.Context, pageStr, limitStr string, operationType model.OperationType, wallet, backer model.WalletAddress) (*model.OperationsResponse, error) {
-	page, err := uc.parsePage(pageStr)
+func (uc *getOperations) GetOperations(ctx context.Context, input GetOperationsInput) (*model.OperationsResponse, error) {
+	page, err := uc.parsePage(input.Page)
 	if err != nil {
 		return nil, err
 	}
 
-	limit, err := uc.parseLimit(limitStr)
+	limit, err := uc.parseLimit(input.Limit)
 	if err != nil {
 		return nil, err
 	}
 
-	operations, err := uc.dbAdapter.GetOperations(ctx, page, limit, operationType, wallet, backer)
+	operations, err := uc.dbAdapter.GetOperations(ctx, page, limit, input.Type, input.Wallet, input.Backer)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func (uc *getOperations) GetOperations(ctx context.Context, pageStr, limitStr st
 	}
 
 	return &model.OperationsResponse{
-		Data:       operations,
+		Operations: operations,
 		Pagination: paginationInfo,
 	}, nil
 }
@@ -141,7 +142,7 @@ func (uc *getOperations) parseYear(yearStr string) (uint16, error) {
 
 // withMonitorer wraps the GetOperations function with telemetry monitoring.
 func (uc *getOperations) withMonitorer(getOperations GetOperationsFunc, metricsClient metrics.Adapter) GetOperationsFunc {
-	return func(ctx context.Context, pageStr, limitStr string, operationType model.OperationType, wallet, backer model.WalletAddress) (result *model.OperationsResponse, err error) {
+	return func(ctx context.Context, input GetOperationsInput) (result *model.OperationsResponse, err error) {
 		startTime := time.Now()
 
 		defer func() {
@@ -150,11 +151,11 @@ func (uc *getOperations) withMonitorer(getOperations GetOperationsFunc, metricsC
 
 				metricsClient.RecordServiceOperation("GetOperations", "UseCase", duration, err)
 				if err == nil && result != nil {
-					metricsClient.RecordDelegationsFetched(len(result.Data))
+					metricsClient.RecordDelegationsFetched(len(result.Operations))
 				}
 			}
 		}()
 
-		return getOperations(ctx, pageStr, limitStr, operationType, wallet, backer)
+		return getOperations(ctx, input)
 	}
 }
