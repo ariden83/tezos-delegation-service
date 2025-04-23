@@ -1,7 +1,9 @@
 package http
 
 import (
+	"context"
 	"fmt"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -17,12 +19,16 @@ import (
 
 // handlers holds the HTTP handlers.
 type handlers struct {
-	getDelegationHandler *GetDelegationHandler
+	getDelegationsHandler *GetDelegationsHandler
+	getOperationsHandler  *GetOperationsHandler
+	getRewardsHandler     *GetRewardsHandler
 }
 
 // usecases holds the use case functions.
 type usecases struct {
 	getDelegationsFunc usecase.GetDelegationsFunc
+	getOperationsFunc  usecase.GetOperationsFunc
+	getRewardsFunc     usecase.GetRewardsFunc
 }
 
 // Server represents the HTTP server.
@@ -39,10 +45,14 @@ type Server struct {
 func NewServer(port, defaultPaginationLimit uint16, dbAdapter database.Adapter, metricClient metrics.Adapter, logger *logrus.Entry) *Server {
 	u := &usecases{
 		getDelegationsFunc: usecase.NewGetDelegationsFunc(defaultPaginationLimit, dbAdapter, metricClient),
+		getOperationsFunc:  usecase.NewGetOperationsFunc(defaultPaginationLimit, dbAdapter, metricClient),
+		getRewardsFunc:     usecase.NewGetRewardsFunc(defaultPaginationLimit, dbAdapter, metricClient),
 	}
 
 	h := &handlers{
-		getDelegationHandler: NewGetDelegationHandler(defaultPaginationLimit, u.getDelegationsFunc),
+		getDelegationsHandler: NewGetDelegationsHandler(defaultPaginationLimit, u.getDelegationsFunc),
+		getOperationsHandler:  NewGetOperationsHandler(defaultPaginationLimit, u.getOperationsFunc),
+		getRewardsHandler:     NewGetRewardsHandler(defaultPaginationLimit, u.getRewardsFunc),
 	}
 
 	return &Server{
@@ -77,11 +87,34 @@ func (s *Server) SetupRoutes() *Server {
 
 	s.router.Use(metrics.Middleware(s.metrics))
 
-	s.router.GET("/xtz/delegations", s.handlers.getDelegationHandler.GetDelegations)
+	xtzGroup := s.router.Group("/xtz")
+	{
+		xtzGroup.GET("/delegations", s.handlers.getDelegationsHandler.GetDelegations)
+		xtzGroup.GET("/operations", s.handlers.getOperationsHandler.GetOperations)
+		xtzGroup.GET("/rewards", s.handlers.getRewardsHandler.GetRewards)
+	}
 
-	s.router.GET("/health", s.healthService.HealthHandler)
-	s.router.GET("/health/live", s.healthService.LivenessHandler)
-	s.router.GET("/health/ready", s.healthService.ReadinessHandler)
+	healthGroup := s.router.Group("/health")
+	{
+		healthGroup.GET("", s.healthService.HealthHandler)
+		healthGroup.GET("/live", s.healthService.LivenessHandler)
+		healthGroup.GET("/ready", s.healthService.ReadinessHandler)
+	}
+
+	debugGroup := s.router.Group("/debug/pprof")
+	{
+		debugGroup.GET("/", gin.WrapF(pprof.Index))
+		debugGroup.GET("/cmdline", gin.WrapF(pprof.Cmdline))
+		debugGroup.GET("/profile", gin.WrapF(pprof.Profile))
+		debugGroup.GET("/symbol", gin.WrapF(pprof.Symbol))
+		debugGroup.GET("/trace", gin.WrapF(pprof.Trace))
+		debugGroup.GET("/allocs", gin.WrapF(pprof.Handler("allocs").ServeHTTP))
+		debugGroup.GET("/block", gin.WrapF(pprof.Handler("block").ServeHTTP))
+		debugGroup.GET("/goroutine", gin.WrapF(pprof.Handler("goroutine").ServeHTTP))
+		debugGroup.GET("/heap", gin.WrapF(pprof.Handler("heap").ServeHTTP))
+		debugGroup.GET("/mutex", gin.WrapF(pprof.Handler("mutex").ServeHTTP))
+		debugGroup.GET("/threadcreate", gin.WrapF(pprof.Handler("threadcreate").ServeHTTP))
+	}
 
 	s.router.GET("/metrics", metrics.PrometheusHandler())
 	return s
@@ -94,28 +127,24 @@ func (s *Server) Start() error {
 	return s.router.Run(fmt.Sprintf(":%d", s.port))
 }
 
-// PrepareShutdown signals that the server is preparing to shut down.
-func (s *Server) PrepareShutdown() {
-	s.healthService.StartShutdown()
-}
-
 // WaitForShutdown waits for a shutdown signal and initiates graceful shutdown.
-func (s *Server) WaitForShutdown() {
+func (s *Server) WaitForShutdown(cancelFunc context.CancelFunc) {
 	l := s.logger.WithField("component", "shutdown")
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
 
-	go func() {
-		<-quit
-		l.Info("Shutting down Tezos Delegation API server...")
+	l.Info("Shutting down Tezos Delegation service server...")
+	cancelFunc()
+	s.healthService.StartShutdown()
 
-		s.PrepareShutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-		l.Info("Graceful shutdown initiated. Waiting for ongoing requests to complete...")
-		time.Sleep(30 * time.Second)
+	l.Info("Waiting for ongoing requests to complete...")
 
-		l.Info("Shutdown complete")
-		os.Exit(0)
-	}()
+	<-ctx.Done()
+
+	l.Info("Shutdown complete")
 }

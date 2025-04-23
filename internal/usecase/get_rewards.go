@@ -11,26 +11,26 @@ import (
 	"github.com/tezos-delegation-service/internal/model"
 )
 
-// getDelegations handles business logic for delegations.
-type getDelegations struct {
+// getRewards handles business logic for delegations.
+type getRewards struct {
 	dbAdapter    database.Adapter
 	defaultLimit uint16
 }
 
-// GetDelegationsFunc defines the function signature for fetching delegations.
-type GetDelegationsFunc func(ctx context.Context, pageStr, limitStr, yearStr string, maxDelegationID int64) (*model.DelegationsResponse, error)
+// GetRewardsFunc defines the function signature for fetching delegations.
+type GetRewardsFunc func(ctx context.Context, pageStr, limitStr string) (*model.RewardsResponse, error)
 
-// NewGetDelegationsFunc creates a new instance of getDelegations.
-func NewGetDelegationsFunc(defaultLimit uint16, adapter database.Adapter, metricsClient metrics.Adapter) GetDelegationsFunc {
-	uc := &getDelegations{
+// NewGetRewardsFunc creates a new instance of getRewards.
+func NewGetRewardsFunc(defaultLimit uint16, adapter database.Adapter, metricsClient metrics.Adapter) GetRewardsFunc {
+	uc := &getRewards{
 		dbAdapter:    adapter,
 		defaultLimit: defaultLimit,
 	}
-	return uc.withMonitorer(uc.GetDelegations, metricsClient)
+	return uc.withMonitorer(uc.GetRewards, metricsClient)
 }
 
-// GetDelegations returns delegations with pagination and optional year filter.
-func (uc *getDelegations) GetDelegations(ctx context.Context, pageStr, limitStr, yearStr string, maxDelegationID int64) (*model.DelegationsResponse, error) {
+// GetRewards returns delegations with pagination and optional year filter.
+func (uc *getRewards) GetRewards(ctx context.Context, pageStr, limitStr, yearStr string, maxDelegationID int64) (*model.RewardsResponse, error) {
 	page, err := uc.parsePage(pageStr)
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func (uc *getDelegations) GetDelegations(ctx context.Context, pageStr, limitStr,
 	if maxDelegationID > 0 {
 		maxDelegationIDUint = uint64(maxDelegationID)
 	}
-	delegations, err := uc.dbAdapter.GetDelegations(ctx, page, limit, year, maxDelegationIDUint)
+	delegations, count, err := uc.dbAdapter.GetRewards(ctx, page, limit, year, maxDelegationIDUint)
 	if err != nil {
 		return nil, err
 	}
@@ -66,26 +66,31 @@ func (uc *getDelegations) GetDelegations(ctx context.Context, pageStr, limitStr,
 
 	pageInt := int(page)
 	limitInt := int(limit)
+	hasMore := (pageInt * limitInt) < count
 
 	paginationInfo := model.PaginationInfo{
 		CurrentPage: pageInt,
 		PerPage:     limitInt,
 		HasPrevPage: page > 1,
+		HasNextPage: hasMore,
 	}
 
 	if page > 1 {
 		paginationInfo.PrevPage = pageInt - 1
 	}
 
-	return &model.DelegationsResponse{
-		Data:            delegations,
-		Pagination:      paginationInfo,
-		MaxDelegationID: maxID,
+	if hasMore {
+		paginationInfo.NextPage = pageInt + 1
+	}
+
+	return &model.RewardsResponse{
+		Data:       delegations,
+		Pagination: paginationInfo,
 	}, nil
 }
 
 // parsePage parses the page from the string and returns it as an integer.
-func (uc *getDelegations) parsePage(pageStr string) (uint32, error) {
+func (uc *getRewards) parsePage(pageStr string) (uint32, error) {
 	page := uint32(1)
 	if pageStr != "" {
 		p, err := strconv.Atoi(pageStr)
@@ -104,7 +109,7 @@ func (uc *getDelegations) parsePage(pageStr string) (uint32, error) {
 }
 
 // parseLimit parses the limit from the string and returns it as an integer.
-func (uc *getDelegations) parseLimit(limitStr string) (uint16, error) {
+func (uc *getRewards) parseLimit(limitStr string) (uint16, error) {
 	limit := uc.defaultLimit
 	if limitStr != "" {
 		l, err := strconv.Atoi(limitStr)
@@ -123,7 +128,7 @@ func (uc *getDelegations) parseLimit(limitStr string) (uint16, error) {
 }
 
 // parseYear parses the year from the string and returns it as an integer.
-func (uc *getDelegations) parseYear(yearStr string) (uint16, error) {
+func (uc *getRewards) parseYear(yearStr string) (uint16, error) {
 	var year uint16 = 0
 	if yearStr != "" {
 		y, err := strconv.Atoi(yearStr)
@@ -144,22 +149,22 @@ func (uc *getDelegations) parseYear(yearStr string) (uint16, error) {
 	return year, nil
 }
 
-// withMonitorer wraps the GetDelegations function with telemetry monitoring.
-func (uc *getDelegations) withMonitorer(getDelegations GetDelegationsFunc, metricsClient metrics.Adapter) GetDelegationsFunc {
-	return func(ctx context.Context, pageStr, limitStr, yearStr string, maxDelegationID int64) (result *model.DelegationsResponse, err error) {
+// withMonitorer wraps the GetRewards function with telemetry monitoring.
+func (uc *getRewards) withMonitorer(getRewards GetRewardsFunc, metricsClient metrics.Adapter) GetRewardsFunc {
+	return func(ctx context.Context, pageStr, limitStr string) (result *model.RewardsResponse, err error) {
 		startTime := time.Now()
 
 		defer func() {
 			if metricsClient != nil {
 				duration := time.Since(startTime)
 
-				metricsClient.RecordServiceOperation("GetDelegations", "UseCase", duration, err)
+				metricsClient.RecordServiceOperation("GetRewards", "UseCase", duration, err)
 				if err == nil && result != nil {
 					metricsClient.RecordDelegationsFetched(len(result.Data))
 				}
 			}
 		}()
 
-		return getDelegations(ctx, pageStr, limitStr, yearStr, maxDelegationID)
+		return getRewards(ctx, pageStr, limitStr)
 	}
 }

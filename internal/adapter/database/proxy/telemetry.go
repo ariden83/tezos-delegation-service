@@ -41,6 +41,58 @@ func (w *TelemetryWrapper) Ping() error {
 	return err
 }
 
+// GetLatestDelegation retrieves the latest delegation and records metrics.
+func (w *TelemetryWrapper) GetLatestDelegation(ctx context.Context) (*model.Delegation, error) {
+	startTime := time.Now()
+	delegation, err := w.db.GetLatestDelegation(ctx)
+	duration := time.Since(startTime)
+
+	if w.metrics != nil {
+		w.metrics.RecordRepositoryOperation("GetLatestDelegation", w.implType, duration, err)
+	}
+
+	return delegation, err
+}
+
+// GetDelegations retrieves delegations with pagination and records metrics.
+func (w *TelemetryWrapper) GetDelegations(ctx context.Context, page uint32, limit, year uint16, maxDelegationID uint64) ([]model.Delegation, error) {
+	startTime := time.Now()
+	delegations, err := w.db.GetDelegations(ctx, page, limit, year, maxDelegationID)
+	duration := time.Since(startTime)
+
+	if w.metrics != nil {
+		w.metrics.RecordRepositoryOperation("GetDelegations", w.implType, duration, err)
+	}
+
+	return delegations, err
+}
+
+// GetOperations retrieves operations with pagination and records metrics.
+func (w *TelemetryWrapper) GetOperations(ctx context.Context, page, limit uint16, operationType model.OperationType, wallet, baker model.WalletAddress) ([]model.Operation, error) {
+	startTime := time.Now()
+	delegations, err := w.db.GetOperations(ctx, page, limit, operationType, wallet, baker)
+	duration := time.Since(startTime)
+
+	if w.metrics != nil {
+		w.metrics.RecordRepositoryOperation("GetOperations", w.implType, duration, err)
+	}
+
+	return delegations, err
+}
+
+// GetHighestBlockLevel retrieves the highest block level and records metrics.
+func (w *TelemetryWrapper) GetHighestBlockLevel(ctx context.Context) (uint64, error) {
+	startTime := time.Now()
+	level, err := w.db.GetHighestBlockLevel(ctx)
+	duration := time.Since(startTime)
+
+	if w.metrics != nil {
+		w.metrics.RecordRepositoryOperation("GetHighestBlockLevel", w.implType, duration, err)
+	}
+
+	return level, err
+}
+
 // SaveDelegation saves a single delegation and records metrics.
 func (w *TelemetryWrapper) SaveDelegation(ctx context.Context, delegation *model.Delegation) error {
 	startTime := time.Now()
@@ -74,58 +126,6 @@ func (w *TelemetryWrapper) SaveDelegations(ctx context.Context, delegations []*m
 	}
 
 	return err
-}
-
-// GetLatestDelegation retrieves the latest delegation and records metrics.
-func (w *TelemetryWrapper) GetLatestDelegation(ctx context.Context) (*model.Delegation, error) {
-	startTime := time.Now()
-	delegation, err := w.db.GetLatestDelegation(ctx)
-	duration := time.Since(startTime)
-
-	if w.metrics != nil {
-		w.metrics.RecordRepositoryOperation("GetLatestDelegation", w.implType, duration, err)
-	}
-
-	return delegation, err
-}
-
-// GetDelegations retrieves delegations with pagination and records metrics.
-func (w *TelemetryWrapper) GetDelegations(ctx context.Context, page uint32, limit, year uint16, maxDelegationID uint64) ([]model.Delegation, int, error) {
-	startTime := time.Now()
-	delegations, totalCount, err := w.db.GetDelegations(ctx, page, limit, year, maxDelegationID)
-	duration := time.Since(startTime)
-
-	if w.metrics != nil {
-		w.metrics.RecordRepositoryOperation("GetDelegations", w.implType, duration, err)
-	}
-
-	return delegations, totalCount, err
-}
-
-// CountDelegations counts the number of delegations for a given year and records metrics.
-func (w *TelemetryWrapper) CountDelegations(ctx context.Context, year uint16) (int, error) {
-	startTime := time.Now()
-	count, err := w.db.CountDelegations(ctx, year)
-	duration := time.Since(startTime)
-
-	if w.metrics != nil {
-		w.metrics.RecordRepositoryOperation("CountDelegations", w.implType, duration, err)
-	}
-
-	return count, err
-}
-
-// GetHighestBlockLevel retrieves the highest block level and records metrics.
-func (w *TelemetryWrapper) GetHighestBlockLevel(ctx context.Context) (uint64, error) {
-	startTime := time.Now()
-	level, err := w.db.GetHighestBlockLevel(ctx)
-	duration := time.Since(startTime)
-
-	if w.metrics != nil {
-		w.metrics.RecordRepositoryOperation("GetHighestBlockLevel", w.implType, duration, err)
-	}
-
-	return level, err
 }
 
 // Close closes the repository and records metrics.

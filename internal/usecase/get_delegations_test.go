@@ -103,7 +103,7 @@ func Test_getDelegations_GetDelegations(t *testing.T) {
 					},
 				}
 				mockDB.On("GetDelegations", mock.Anything, uint32(1), uint16(10), uint16(2025), uint64(0)).
-					Return(delegations, 1, nil)
+					Return(delegations, nil)
 				return mockDB
 			}(),
 			args: args{
@@ -198,7 +198,7 @@ func Test_getDelegations_GetDelegations(t *testing.T) {
 			dbAdapter: func() database.Adapter {
 				mockDB := dbmock.New()
 				mockDB.On("GetDelegations", mock.Anything, uint32(1), uint16(10), uint16(0), uint64(0)).
-					Return([]model.Delegation{}, 0, nil)
+					Return([]model.Delegation{}, nil)
 				return mockDB
 			}(),
 			args: args{
@@ -225,7 +225,7 @@ func Test_getDelegations_GetDelegations(t *testing.T) {
 			dbAdapter: func() database.Adapter {
 				mockDB := dbmock.New()
 				mockDB.On("GetDelegations", mock.Anything, uint32(1), uint16(50), uint16(0), uint64(0)).
-					Return([]model.Delegation{}, 0, nil)
+					Return([]model.Delegation{}, nil)
 				return mockDB
 			}(),
 			args: args{
@@ -252,7 +252,7 @@ func Test_getDelegations_GetDelegations(t *testing.T) {
 			dbAdapter: func() database.Adapter {
 				mockDB := dbmock.New()
 				mockDB.On("GetDelegations", mock.Anything, uint32(1), uint16(10), uint16(0), uint64(0)).
-					Return([]model.Delegation{}, 0, fmt.Errorf("database error"))
+					Return([]model.Delegation{}, fmt.Errorf("database error"))
 				return mockDB
 			}(),
 			args: args{

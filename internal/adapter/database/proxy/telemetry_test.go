@@ -126,81 +126,6 @@ func Test_TelemetryWrapper_Close(t *testing.T) {
 	}
 }
 
-func Test_TelemetryWrapper_CountDelegations(t *testing.T) {
-	type fields struct {
-		metrics  metrics.Adapter
-		db       database.Adapter
-		implType string
-	}
-	type args struct {
-		ctx  context.Context
-		year uint16
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    int
-		wantErr bool
-	}{
-		{
-			name: "nominal case",
-			fields: fields{
-				metrics: metricsmemory.New(),
-				db: func() database.Adapter {
-					m := databasemock.New()
-					m.On("CountDelegations", mock.Anything, uint16(2025)).
-						Return(10, nil)
-					return m
-				}(),
-				implType: "api",
-			},
-			args: args{
-				ctx:  context.TODO(),
-				year: 2025,
-			},
-			want:    10,
-			wantErr: false,
-		},
-		{
-			name: "error case - db error",
-			fields: fields{
-				metrics: metricsmemory.New(),
-				db: func() database.Adapter {
-					m := databasemock.New()
-					m.On("CountDelegations", mock.Anything, uint16(2025)).
-						Return(0, errors.New("db error"))
-					return m
-				}(),
-				implType: "api",
-			},
-			args: args{
-				ctx:  context.TODO(),
-				year: 2025,
-			},
-			want:    0,
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			w := &TelemetryWrapper{
-				metrics:  tt.fields.metrics,
-				db:       tt.fields.db,
-				implType: tt.fields.implType,
-			}
-			got, err := w.CountDelegations(tt.args.ctx, tt.args.year)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("CountDelegations() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("CountDelegations() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func Test_TelemetryWrapper_GetDelegations(t *testing.T) {
 	type fields struct {
 		metrics  metrics.Adapter
@@ -219,7 +144,6 @@ func Test_TelemetryWrapper_GetDelegations(t *testing.T) {
 		fields  fields
 		args    args
 		want    []model.Delegation
-		want1   int
 		wantErr bool
 	}{
 		{
@@ -247,7 +171,6 @@ func Test_TelemetryWrapper_GetDelegations(t *testing.T) {
 				{Amount: 100},
 				{Amount: 200},
 			},
-			want1:   2,
 			wantErr: false,
 		},
 		{
@@ -269,7 +192,6 @@ func Test_TelemetryWrapper_GetDelegations(t *testing.T) {
 				year:  2025,
 			},
 			want:    []model.Delegation{},
-			want1:   0,
 			wantErr: true,
 		},
 	}
@@ -280,16 +202,13 @@ func Test_TelemetryWrapper_GetDelegations(t *testing.T) {
 				db:       tt.fields.db,
 				implType: tt.fields.implType,
 			}
-			got, got1, err := w.GetDelegations(tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year, tt.args.maxDelegationID)
+			got, err := w.GetDelegations(tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year, tt.args.maxDelegationID)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetDelegations() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetDelegations() got = %v, want %v", got, tt.want)
-			}
-			if got1 != tt.want1 {
-				t.Errorf("GetDelegations() got1 = %v, want %v", got1, tt.want1)
 			}
 		})
 	}

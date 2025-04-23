@@ -22,7 +22,6 @@ func Test_New(t *testing.T) {
 	defer os.Unsetenv("GO_TESTING")
 
 	cfg := Config{
-		Driver:   "sqlmock",
 		User:     "foo",
 		DBName:   "bar",
 		Host:     "localhost",
@@ -96,119 +95,6 @@ func Test_psql_Close(t *testing.T) {
 					assert.NoError(t, mock.ExpectationsWereMet())
 				}
 			}
-		})
-	}
-}
-
-func Test_psql_CountDelegations(t *testing.T) {
-	type args struct {
-		ctx  context.Context
-		year uint16
-	}
-	tests := []struct {
-		name    string
-		db      *sqlx.DB
-		args    args
-		want    int
-		wantErr assert.ErrorAssertionFunc
-		setup   func(mock sqlmock.Sqlmock)
-	}{
-		{
-			name: "Nominal case",
-			args: args{
-				ctx:  context.Background(),
-				year: 2023,
-			},
-			want:    10,
-			wantErr: assert.NoError,
-			setup: func(mock sqlmock.Sqlmock) {
-				startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
-				endDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
-
-				rows := sqlmock.NewRows([]string{"count"}).AddRow(10)
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM "+tableDelegations+
-					" WHERE timestamp >= \\$1 AND timestamp < \\$2").
-					WithArgs(startDate, endDate).
-					WillReturnRows(rows)
-			},
-		},
-		{
-			name: "No year filter",
-			args: args{
-				ctx:  context.Background(),
-				year: 0,
-			},
-			want:    5,
-			wantErr: assert.NoError,
-			setup: func(mock sqlmock.Sqlmock) {
-				rows := sqlmock.NewRows([]string{"count"}).AddRow(5)
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM " + tableDelegations).
-					WillReturnRows(rows)
-			},
-		},
-		{
-			name: "Error case - query error",
-			args: args{
-				ctx:  context.Background(),
-				year: 2023,
-			},
-			want:    0,
-			wantErr: assert.Error,
-			setup: func(mock sqlmock.Sqlmock) {
-				startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
-				endDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
-
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM "+tableDelegations+" WHERE timestamp >= \\$1 AND timestamp < \\$2").
-					WithArgs(startDate, endDate).
-					WillReturnError(fmt.Errorf("database error"))
-			},
-		},
-		{
-			name: "Error case - context canceled",
-			args: args{
-				ctx:  context.Background(),
-				year: 2023,
-			},
-			want:    0,
-			wantErr: assert.Error,
-			setup: func(mock sqlmock.Sqlmock) {
-				startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
-				endDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
-
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM "+tableDelegations+" WHERE timestamp >= \\$1 AND timestamp < \\$2").
-					WithArgs(startDate, endDate).
-					WillReturnError(context.Canceled)
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			db, mock, err := sqlmock.New()
-			assert.NoError(t, err)
-			defer func() {
-				_ = db.Close()
-			}()
-
-			sqlxDB := sqlx.NewDb(db, "sqlmock")
-			defer func() {
-				_ = sqlxDB.Close()
-			}()
-
-			if tt.setup != nil {
-				tt.setup(mock)
-			}
-
-			p := &psql{
-				db:               sqlxDB,
-				tableDelegations: tableDelegations,
-			}
-			got, err := p.CountDelegations(tt.args.ctx, tt.args.year)
-			if !tt.wantErr(t, err, fmt.Sprintf("CountDelegations(%v, %v)", tt.args.ctx, tt.args.year)) {
-				return
-			}
-			assert.Equalf(t, tt.want, got, "CountDelegations(%v, %v)", tt.args.ctx, tt.args.year)
-
-			assert.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
 }
@@ -389,14 +275,12 @@ func Test_psql_GetDelegations(t *testing.T) {
 				db:               tt.db,
 				tableDelegations: tableDelegations,
 			}
-			got, got1, err := p.GetDelegations(tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year, tt.args.maxDelegationID)
+			got, err := p.GetDelegations(tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year, tt.args.maxDelegationID)
 			if !tt.wantErr(t, err, fmt.Sprintf("GetDelegations(%v, %v, %v, %v, %v)",
 				tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year, tt.args.maxDelegationID)) {
 				return
 			}
 			assert.Equalf(t, tt.want, got, "GetDelegations(%v, %v, %v, %v, %v)",
-				tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year, tt.args.maxDelegationID)
-			assert.Equalf(t, tt.want1, got1, "GetDelegations(%v, %v, %v, %v, %v)",
 				tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year, tt.args.maxDelegationID)
 		})
 	}

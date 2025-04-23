@@ -3,4 +3,8 @@
 %uri=https://github.com/ariden83/tezos-delegation-service
 
 01_appschema 2025-04-04T12:00:00Z Ariden <adrienparrochia@gmail.com> # Add schema for delegation service
-02_delegations [01_appschema] 2025-04-29T04:00:00Z Ariden <adrienparrochia@gmail.com> # Create delegations table with optimized types
+02_accounts [01_appschema] 2025-04-23T04:00:00Z Ariden <adrienparrochia@gmail.com> # Create accounts table
+03_delegations [02_accounts] 2025-04-23T04:01:00Z Ariden <adrienparrochia@gmail.com> # Create delegations table
+04_staking_operations [03_delegations] 2025-04-23T04:02:00Z Ariden <adrienparrochia@gmail.com> # Create staking operations table
+05_rewards [04_staking_operations] 2025-04-23T04:03:00Z Ariden <adrienparrochia@gmail.com> # Create rewards table
+06_staking_pools [05_rewards] 2025-04-23T04:04:00Z Ariden <adrienparrochia@gmail.com> # Create staking pools table

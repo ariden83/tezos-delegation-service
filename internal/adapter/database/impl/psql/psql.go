@@ -16,8 +16,6 @@ import (
 
 // Config represents database configuration.
 type Config struct {
-	// DBMigrateFile string `mapstructure:"db_migrate_file"`
-	Driver           string `mapstructure:"driver"`
 	Host             string `mapstructure:"host"`
 	Port             int    `mapstructure:"port"`
 	User             string `mapstructure:"user"`
@@ -25,6 +23,8 @@ type Config struct {
 	DBName           string `mapstructure:"dbname"`
 	SSLMode          string `mapstructure:"sslmode"`
 	TableDelegations string `mapstructure:"table_delegations"`
+	TableOperations  string `mapstructure:"table_operations"`
+	TableRewards     string `mapstructure:"table_rewards"`
 }
 
 type text interface {
@@ -55,6 +55,8 @@ func (s Secret) MarshalText() (text []byte, err error) {
 type psql struct {
 	db               *sqlx.DB
 	tableDelegations string
+	tableOperations  string
+	tableRewards     string
 }
 
 // New creates a new SQL delegation repository.
@@ -69,6 +71,8 @@ func New(cfg Config) (database.Adapter, error) {
 	return &psql{
 		db:               db,
 		tableDelegations: cfg.TableDelegations,
+		tableOperations:  cfg.TableOperations,
+		tableRewards:     cfg.TableRewards,
 	}, nil
 }
 
@@ -77,41 +81,81 @@ func (p *psql) Ping() error {
 	return p.db.Ping()
 }
 
-// SaveDelegation saves a delegation to the database.
-func (p *psql) SaveDelegation(ctx context.Context, delegation *model.Delegation) error {
-	query := `
-		INSERT INTO ` + p.tableDelegations + ` (delegator, delegate, timestamp, amount, level)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT DO NOTHING
-	`
-	_, err := p.db.ExecContext(ctx, query, delegation.Delegator, delegation.Delegate, delegation.Timestamp, delegation.Amount, delegation.Level)
-	return err
+// GetHighestBlockLevel returns the highest block level in the database.
+func (p *psql) GetHighestBlockLevel(ctx context.Context) (uint64, error) {
+	var level uint64
+	err := p.db.GetContext(ctx, &level, "SELECT COALESCE(MAX(level), 0) FROM "+p.tableDelegations)
+	return level, err
 }
 
-// SaveDelegations saves multiple delegations to the database.
-func (p *psql) SaveDelegations(ctx context.Context, delegations []*model.Delegation) error {
-	tx, err := p.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return err
+// GetOperations returns delegations with pagination and optional year, operationType, and maxDelegationID filters.
+func (p *psql) GetOperations(ctx context.Context, page, limit uint16, operationType model.OperationType, wallet, baker model.WalletAddress) ([]model.Operation, error) {
+	var operations []model.Operation
+	if page < 1 {
+		page = 1
 	}
 
-	query := `
-		INSERT INTO ` + p.tableDelegations + ` (delegator, delegate, timestamp, amount, level)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT DO NOTHING
-	`
+	if limit == 0 {
+		limit = 50
+	} else if limit > 200 {
+		limit = 200
+	}
 
-	for _, delegation := range delegations {
-		_, err := tx.ExecContext(ctx, query, delegation.Delegator, delegation.Delegate, delegation.Timestamp, delegation.Amount, delegation.Level)
-		if err != nil {
-			if errRollBack := tx.Rollback(); errRollBack != nil {
-				return errors.New("query execution error: " + err.Error() + ", rollback error: " + errRollBack.Error())
-			}
-			return err
+	offset := (page - 1) * limit
+
+	var (
+		query       string
+		args        []interface{}
+		whereClause string
+		argIndex    = 1
+	)
+
+	if operationType != "" {
+		whereClause = "WHERE o.entrypoint = $" + strconv.Itoa(argIndex)
+		args = append(args, operationType.String())
+		argIndex++
+	}
+
+	if wallet != "" {
+		if whereClause == "" {
+			whereClause = "WHERE "
+		} else {
+			whereClause += " AND "
 		}
+		whereClause += "sender.address = $" + strconv.Itoa(argIndex)
+		args = append(args, wallet.String())
+		argIndex++
 	}
 
-	return tx.Commit()
+	if baker != "" {
+		if whereClause == "" {
+			whereClause = "WHERE "
+		} else {
+			whereClause += " AND "
+		}
+		whereClause += "contract.address = $" + strconv.Itoa(argIndex)
+		args = append(args, baker.String())
+		argIndex++
+	}
+
+	query = `
+		SELECT o.id, sender.address as sender_id, contract.address as contract_id, 
+			o.entrypoint, o.amount, o.block, o.timestamp, o.status, o.created_at
+		FROM ` + p.tableOperations + ` o
+		JOIN app.accounts sender ON o.sender_id = sender.id
+		JOIN app.accounts contract ON o.contract_id = contract.id
+		` + whereClause + `
+		ORDER BY o.timestamp DESC
+		LIMIT $` + strconv.Itoa(argIndex) + ` OFFSET $` + strconv.Itoa(argIndex+1) + `
+	`
+	args = append(args, limit, offset)
+
+	err := p.db.SelectContext(ctx, &operations, query, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	return operations, nil
 }
 
 // GetLatestDelegation returns the latest delegation from the database.
@@ -131,11 +175,19 @@ func (p *psql) GetLatestDelegation(ctx context.Context) (*model.Delegation, erro
 }
 
 // GetDelegations returns delegations with pagination and optional year and maxDelegationID filters.
-func (p *psql) GetDelegations(ctx context.Context, page uint32, limit, year uint16, maxDelegationID uint64) ([]model.Delegation, int, error) {
+func (p *psql) GetDelegations(ctx context.Context, page uint32, limit, year uint16, maxDelegationID uint64) ([]model.Delegation, error) {
 	var delegations []model.Delegation
+
+	if page < 1 {
+		page = 1
+	}
+
 	if limit == 0 {
 		limit = 50
+	} else if limit > 200 {
+		limit = 200
 	}
+
 	offset := (page - 1) * uint32(limit)
 
 	var (
@@ -178,53 +230,47 @@ func (p *psql) GetDelegations(ctx context.Context, page uint32, limit, year uint
 
 	err := p.db.SelectContext(ctx, &delegations, query, args...)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	totalCount, err := p.CountDelegations(ctx, year)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return delegations, totalCount, nil
+	return delegations, nil
 }
 
-// CountDelegations returns the total count of delegations with optional year filter.
-func (p *psql) CountDelegations(ctx context.Context, year uint16) (int, error) {
-	var count int
-	var query string
-	var args []interface{}
-
-	if year > 0 {
-		startDate := time.Date(int(year), 1, 1, 0, 0, 0, 0, time.UTC).Unix()
-		endDate := time.Date(int(year)+1, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
-
-		query = `
-			SELECT COUNT(*) 
-			FROM ` + p.tableDelegations + `
-			WHERE timestamp >= $1 AND timestamp < $2
-		`
-		args = []interface{}{startDate, endDate}
-	} else {
-		query = `
-			SELECT COUNT(*) 
-			FROM ` + p.tableDelegations + `
-		`
-	}
-
-	err := p.db.GetContext(ctx, &count, query, args...)
-	if err != nil {
-		return 0, err
-	}
-
-	return count, nil
+// SaveDelegation saves a delegation to the database.
+func (p *psql) SaveDelegation(ctx context.Context, delegation *model.Delegation) error {
+	query := `
+		INSERT INTO ` + p.tableDelegations + ` (delegator, delegate, timestamp, amount, level)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT DO NOTHING
+	`
+	_, err := p.db.ExecContext(ctx, query, delegation.Delegator, delegation.Delegate, delegation.Timestamp, delegation.Amount, delegation.Level)
+	return err
 }
 
-// GetHighestBlockLevel returns the highest block level in the database.
-func (p *psql) GetHighestBlockLevel(ctx context.Context) (uint64, error) {
-	var level uint64
-	err := p.db.GetContext(ctx, &level, "SELECT COALESCE(MAX(level), 0) FROM "+p.tableDelegations)
-	return level, err
+// SaveDelegations saves multiple delegations to the database.
+func (p *psql) SaveDelegations(ctx context.Context, delegations []*model.Delegation) error {
+	tx, err := p.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	query := `
+		INSERT INTO ` + p.tableDelegations + ` (delegator, delegate, timestamp, amount, level)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT DO NOTHING
+	`
+
+	for _, delegation := range delegations {
+		_, err := tx.ExecContext(ctx, query, delegation.Delegator, delegation.Delegate, delegation.Timestamp, delegation.Amount, delegation.Level)
+		if err != nil {
+			if errRollBack := tx.Rollback(); errRollBack != nil {
+				return errors.New("query execution error: " + err.Error() + ", rollback error: " + errRollBack.Error())
+			}
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 // Close closes the database connection.

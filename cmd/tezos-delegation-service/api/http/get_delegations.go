@@ -16,22 +16,22 @@ import (
 	"github.com/tezos-delegation-service/internal/usecase"
 )
 
-// GetDelegationHandler handles delegation API requests.
-type GetDelegationHandler struct {
+// GetDelegationsHandler handles delegation API requests.
+type GetDelegationsHandler struct {
 	getDelegationsFunc usecase.GetDelegationsFunc
 	paginationLimit    uint16
 }
 
-// NewGetDelegationHandler creates a new delegation handler.
-func NewGetDelegationHandler(paginationLimit uint16, getDelegationsFunc usecase.GetDelegationsFunc) *GetDelegationHandler {
-	return &GetDelegationHandler{
+// NewGetDelegationsHandler creates a new delegation handler.
+func NewGetDelegationsHandler(paginationLimit uint16, getDelegationsFunc usecase.GetDelegationsFunc) *GetDelegationsHandler {
+	return &GetDelegationsHandler{
 		getDelegationsFunc: getDelegationsFunc,
 		paginationLimit:    paginationLimit,
 	}
 }
 
 // GetDelegations handles GET /xtz/delegations requests.
-func (h *GetDelegationHandler) GetDelegations(c *gin.Context) {
+func (h *GetDelegationsHandler) GetDelegations(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	page, limit, year, err := h.validateRequestParams(c)
@@ -63,7 +63,7 @@ func (h *GetDelegationHandler) GetDelegations(c *gin.Context) {
 }
 
 // extractMaxDelegationID extracts and parses the X-Max-Delegation-ID header.
-func (h *GetDelegationHandler) extractMaxDelegationID(c *gin.Context) int64 {
+func (h *GetDelegationsHandler) extractMaxDelegationID(c *gin.Context) int64 {
 	maxDelegationID := int64(0)
 	maxDelegationIDStr := c.GetHeader("X-Max-Delegation-ID")
 	if maxDelegationIDStr != "" {
@@ -76,7 +76,7 @@ func (h *GetDelegationHandler) extractMaxDelegationID(c *gin.Context) int64 {
 }
 
 // validateRequestParams validates and parses request parameters.
-func (h *GetDelegationHandler) validateRequestParams(c *gin.Context) (int, int, string, error) {
+func (h *GetDelegationsHandler) validateRequestParams(c *gin.Context) (int, int, string, error) {
 	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
 	if err != nil || page < 1 {
 		return 0, 0, "", errors.New("invalid page number")
@@ -92,7 +92,7 @@ func (h *GetDelegationHandler) validateRequestParams(c *gin.Context) (int, int, 
 }
 
 // setPaginationHeaders sets pagination headers for the response.
-func (h *GetDelegationHandler) setPaginationHeaders(c *gin.Context, pInfo model.PaginationInfo) {
+func (h *GetDelegationsHandler) setPaginationHeaders(c *gin.Context, pInfo model.PaginationInfo) {
 	c.Header("X-Page-Current", strconv.Itoa(pInfo.CurrentPage))
 	c.Header("X-Page-Per-Page", strconv.Itoa(pInfo.PerPage))
 
@@ -105,7 +105,7 @@ func (h *GetDelegationHandler) setPaginationHeaders(c *gin.Context, pInfo model.
 }
 
 // setRequestIDHeader sets the X-Request-ID header for the response.
-func (h *GetDelegationHandler) setRequestIDHeader(c *gin.Context) {
+func (h *GetDelegationsHandler) setRequestIDHeader(c *gin.Context) {
 	requestID := c.GetHeader("X-Request-ID")
 	if requestID == "" {
 		requestID = strconv.FormatInt(time.Now().UnixNano(), 36)
@@ -114,7 +114,7 @@ func (h *GetDelegationHandler) setRequestIDHeader(c *gin.Context) {
 }
 
 // setCacheHeaders sets the cache headers for the response.
-func (h *GetDelegationHandler) setCacheHeaders(c *gin.Context, year string) {
+func (h *GetDelegationsHandler) setCacheHeaders(c *gin.Context, year string) {
 	if year != "" {
 		c.Header("Cache-Control", "public, max-age=3600") // 1h cache
 	} else {
@@ -125,7 +125,7 @@ func (h *GetDelegationHandler) setCacheHeaders(c *gin.Context, year string) {
 
 // setETagHeader sets the ETag header for the response.
 // It takes into account the X-Max-Delegation-ID header to ensure proper caching.
-func (h *GetDelegationHandler) setETagHeader(c *gin.Context, response *model.DelegationResponse) {
+func (h *GetDelegationsHandler) setETagHeader(c *gin.Context, response *model.DelegationsResponse) {
 	jsonData, err := json.Marshal(response)
 	if err != nil {
 		etag := `"` + strconv.FormatInt(time.Now().UnixNano(), 36) + `"`
@@ -162,7 +162,7 @@ func (h *GetDelegationHandler) setETagHeader(c *gin.Context, response *model.Del
 }
 
 // setMaxDelegationIDHeader sets the X-Max-Delegation-ID header with the highest delegation ID.
-func (h *GetDelegationHandler) setMaxDelegationIDHeader(c *gin.Context, maxDelegationID int64) {
+func (h *GetDelegationsHandler) setMaxDelegationIDHeader(c *gin.Context, maxDelegationID int64) {
 	if maxDelegationID > 0 {
 		c.Header("X-Max-Delegation-ID", strconv.FormatInt(maxDelegationID, 10))
 	}

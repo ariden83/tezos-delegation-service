@@ -48,64 +48,6 @@ func Test_Mock_Close(t *testing.T) {
 	}
 }
 
-func Test_Mock_CountDelegations(t *testing.T) {
-	type args struct {
-		ctx  context.Context
-		year uint16
-	}
-	tests := []struct {
-		name    string
-		mock    *Mock
-		args    args
-		want    int
-		wantErr bool
-	}{
-		{
-			name: "nominal case",
-			mock: func() *Mock {
-				m := New()
-				m.On("CountDelegations", mock.Anything, uint16(2025)).
-					Return(10, nil)
-				return m
-			}(),
-			args: args{
-				ctx:  context.Background(),
-				year: 2025,
-			},
-			want:    10,
-			wantErr: false,
-		},
-		{
-			name: "error case",
-			mock: func() *Mock {
-				m := New()
-				m.On("CountDelegations", mock.Anything, uint16(2025)).
-					Return(0, errors.New("count error"))
-				return m
-			}(),
-			args: args{
-				ctx:  context.Background(),
-				year: 2025,
-			},
-			want:    0,
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := tt.mock
-			got, err := m.CountDelegations(tt.args.ctx, tt.args.year)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("CountDelegations() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("CountDelegations() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func Test_Mock_GetDelegations(t *testing.T) {
 	type args struct {
 		ctx             context.Context
@@ -119,7 +61,6 @@ func Test_Mock_GetDelegations(t *testing.T) {
 		mock    *Mock
 		args    args
 		want    []model.Delegation
-		want1   int
 		wantErr bool
 	}{
 		{
@@ -127,7 +68,7 @@ func Test_Mock_GetDelegations(t *testing.T) {
 			mock: func() *Mock {
 				m := New()
 				m.On("GetDelegations", mock.Anything, uint32(1), uint16(10), uint16(2025), uint64(0)).
-					Return([]model.Delegation{{ID: 1}}, 1, nil)
+					Return([]model.Delegation{{ID: 1}}, nil)
 				return m
 			}(),
 			args: args{
@@ -138,7 +79,6 @@ func Test_Mock_GetDelegations(t *testing.T) {
 				maxDelegationID: 0,
 			},
 			want:    []model.Delegation{{ID: 1}},
-			want1:   1,
 			wantErr: false,
 		},
 		{
@@ -146,7 +86,7 @@ func Test_Mock_GetDelegations(t *testing.T) {
 			mock: func() *Mock {
 				m := New()
 				m.On("GetDelegations", mock.Anything, uint32(1), uint16(10), uint16(2025), uint64(0)).
-					Return([]model.Delegation(nil), 0, errors.New("get delegations error"))
+					Return([]model.Delegation(nil), errors.New("get delegations error"))
 				return m
 			}(),
 			args: args{
@@ -157,23 +97,19 @@ func Test_Mock_GetDelegations(t *testing.T) {
 				maxDelegationID: 0,
 			},
 			want:    nil,
-			want1:   0,
 			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := tt.mock
-			got, got1, err := m.GetDelegations(tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year, tt.args.maxDelegationID)
+			got, err := m.GetDelegations(tt.args.ctx, tt.args.page, tt.args.limit, tt.args.year, tt.args.maxDelegationID)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetDelegations() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetDelegations() got = %v, want %v", got, tt.want)
-			}
-			if got1 != tt.want1 {
-				t.Errorf("GetDelegations() got1 = %v, want %v", got1, tt.want1)
 			}
 		})
 	}
