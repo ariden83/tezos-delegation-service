@@ -2,8 +2,8 @@
 
 BEGIN;
 
-DROP INDEX IF EXISTS app.idx_staking_operations_sender_id;
-DROP INDEX IF EXISTS app.idx_staking_operations_contract_id;
+DROP INDEX IF EXISTS app.idx_staking_operations_sender_address;
+DROP INDEX IF EXISTS app.idx_staking_operations_contract_address;
 DROP INDEX IF EXISTS app.idx_staking_operations_timestamp;
 DROP INDEX IF EXISTS app.idx_staking_operations_status;
 

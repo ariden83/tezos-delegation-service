@@ -8,11 +8,11 @@ WHERE FALSE;
 
 SELECT 1/COUNT(*)
 FROM pg_indexes
-WHERE tablename = 'staking_operations' AND indexname = 'idx_staking_operations_sender_id';
+WHERE tablename = 'staking_operations' AND indexname = 'idx_staking_operations_sender_address';
 
 SELECT 1/COUNT(*)
 FROM pg_indexes
-WHERE tablename = 'staking_operations' AND indexname = 'idx_staking_operations_contract_id';
+WHERE tablename = 'staking_operations' AND indexname = 'idx_staking_operations_contract_address';
 
 SELECT 1/COUNT(*)
 FROM pg_indexes

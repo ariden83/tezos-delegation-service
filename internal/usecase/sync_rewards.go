@@ -38,6 +38,7 @@ func (uc *syncRewards) SyncRewards(ctx context.Context) error {
 		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
 	}
+
 	return nil
 }
 

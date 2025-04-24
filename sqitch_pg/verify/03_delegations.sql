@@ -20,11 +20,11 @@ WHERE tablename = 'delegations' AND indexname = 'idx_delegations_level';
 
 SELECT 1/COUNT(*)
 FROM pg_indexes
-WHERE tablename = 'delegations' AND indexname = 'idx_delegations_sender_id';
+WHERE tablename = 'delegations' AND indexname = 'idx_delegations_sender_address';
 
 SELECT 1/COUNT(*)
 FROM pg_indexes
-WHERE tablename = 'delegations' AND indexname = 'idx_delegations_delegate_id';
+WHERE tablename = 'delegations' AND indexname = 'idx_delegations_delegate_address';
 
 SELECT 1/COUNT(*)
 FROM pg_indexes

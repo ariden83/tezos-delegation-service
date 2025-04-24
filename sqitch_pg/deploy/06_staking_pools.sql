@@ -5,7 +5,7 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS app.staking_pools (
     id SERIAL PRIMARY KEY,
-    address TEXT NOT NULL,
+    address TEXT NOT NULL REFERENCES app.accounts(address),
     name TEXT NOT NULL,
     staking_token TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

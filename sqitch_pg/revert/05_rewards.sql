@@ -2,8 +2,8 @@
 
 BEGIN;
 
-DROP INDEX IF EXISTS app.idx_rewards_recipient_id;
-DROP INDEX IF EXISTS app.idx_rewards_source_id;
+DROP INDEX IF EXISTS app.idx_rewards_recipient_address;
+DROP INDEX IF EXISTS app.idx_rewards_source_address;
 DROP INDEX IF EXISTS app.idx_rewards_cycle;
 DROP INDEX IF EXISTS app.idx_rewards_timestamp;
 

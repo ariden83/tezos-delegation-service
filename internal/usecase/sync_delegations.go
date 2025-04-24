@@ -77,6 +77,7 @@ func (uc *syncDelegations) syncHistoricalDelegations(ctx context.Context) error 
 		}
 
 		modelDelegations := make([]*model.Delegation, 0, len(delegations))
+		modelAccounts := map[string]*model.Account{}
 		for _, d := range delegations {
 			if d.Status != "applied" {
 				continue
@@ -92,8 +93,30 @@ func (uc *syncDelegations) syncHistoricalDelegations(ctx context.Context) error 
 
 			modelDelegations = append(modelDelegations, modelDelegation)
 
+			if _, exists := modelAccounts[d.Sender.Address]; !exists {
+				modelAccounts[d.Sender.Address] = &model.Account{
+					Address: model.WalletAddress(d.Sender.Address),
+					Alias:   d.Sender.Alias,
+					Type:    model.AccountTypeUser,
+				}
+			}
+
+			if _, exists := modelAccounts[d.Delegate.Address]; !exists {
+				modelAccounts[d.Delegate.Address] = &model.Account{
+					Address: model.WalletAddress(d.Delegate.Address),
+					Alias:   d.Delegate.Alias,
+					Type:    model.AccountTypeDelegate,
+				}
+			}
+
 			if d.Level > lastSavedLevel {
 				lastSavedLevel = d.Level
+			}
+		}
+
+		if len(modelAccounts) > 0 {
+			if err := uc.dbAdapter.SaveAccounts(ctx, modelAccounts); err != nil {
+				return fmt.Errorf("error saving accounts batch (offset %d): %w", offset, err)
 			}
 		}
 

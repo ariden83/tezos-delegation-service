@@ -5,8 +5,8 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS app.staking_operations (
     id SERIAL PRIMARY KEY,
-    sender_id BIGINT NOT NULL REFERENCES app.accounts(id),
-    contract_id BIGINT NOT NULL REFERENCES app.accounts(id),
+    sender_address BIGINT NOT NULL REFERENCES app.accounts(address),
+    contract_address BIGINT NOT NULL REFERENCES app.accounts(address),
     entrypoint TEXT NOT NULL,
     amount DOUBLE PRECISION NOT NULL,
     block TEXT NOT NULL,
@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS app.staking_operations (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_staking_operations_sender_id ON app.staking_operations (sender_id);
-CREATE INDEX IF NOT EXISTS idx_staking_operations_contract_id ON app.staking_operations (contract_id);
+CREATE INDEX IF NOT EXISTS idx_staking_operations_sender_address ON app.staking_operations (sender_address);
+CREATE INDEX IF NOT EXISTS idx_staking_operations_contract_address ON app.staking_operations (contract_address);
 CREATE INDEX IF NOT EXISTS idx_staking_operations_timestamp ON app.staking_operations (timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_staking_operations_status ON app.staking_operations (status);
 

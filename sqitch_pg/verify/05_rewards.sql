@@ -8,11 +8,11 @@ WHERE FALSE;
 
 SELECT 1/COUNT(*)
 FROM pg_indexes
-WHERE tablename = 'rewards' AND indexname = 'idx_rewards_recipient_id';
+WHERE tablename = 'rewards' AND indexname = 'idx_rewards_recipient_address';
 
 SELECT 1/COUNT(*)
 FROM pg_indexes
-WHERE tablename = 'rewards' AND indexname = 'idx_rewards_source_id';
+WHERE tablename = 'rewards' AND indexname = 'idx_rewards_source_address';
 
 SELECT 1/COUNT(*)
 FROM pg_indexes
