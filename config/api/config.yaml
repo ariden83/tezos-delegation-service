@@ -1,0 +1,33 @@
+logging:
+  level: info
+  format: json
+  enable_file: false
+  file_path: /var/log/tezos-delegation-service.log
+  graylog:
+    enabled: false
+    url: graylog.example.com
+    port: 12201
+    facility: tezos-delegation-service
+
+database:
+  impl: psql
+  psql:
+    driver: postgres
+    host: db
+    port: 5432
+    user: "postgres"
+    password: "postgres"
+    dbname: "tezos_delegations"
+    sslmode: disable
+    table_delegations: "app.delegations"
+    table_operations: "app.operations"
+    table_rewards: "app.rewards"
+
+metrics:
+  impl: prometheus
+
+pagination:
+  limit: 50
+
+server:
+  port: 8080

@@ -8,7 +8,7 @@ APP_NAME=tezos-delegation-service
 
 build:
 	@echo "Building..."
-	@go build -o $(GOBIN)/$(APP_NAME) ./cmd/tezos-delegation-service
+	@go build -o $(GOBIN)/$(APP_NAME) ./cmd/tezos-delegation-api
 
 run: build
 	@echo "Running..."
@@ -28,16 +28,16 @@ clean:
 
 docker-build:
 	@echo "Building Docker image..."
-	@docker build -t tezos-delegation-service .
+	@docker build -t tezos-delegation-api .
 
 docker-run:
 	@echo "Running with Docker..."
-	@docker run -p 8080:8080 --name tezos-delegation-service tezos-delegation-service
+	@docker run -p 8080:8080 --name tezos-delegation-api tezos-delegation-api
 
 docker-stop:
 	@echo "Stopping Docker services..."
-	@docker stop tezos-delegation-service || true
-	@docker rm tezos-delegation-service || true
+	@docker stop tezos-delegation-api || true
+	@docker rm tezos-delegation-api || true
 
 docker-compose-up:
 	@echo "Building and starting all services with docker compose..."

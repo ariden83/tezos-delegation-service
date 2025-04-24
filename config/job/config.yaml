@@ -20,8 +20,8 @@ database:
     dbname: "tezos_delegations"
     sslmode: disable
     table_delegations: "app.delegations"
-    table_delegations: "app.operations"
-    table_delegations: "app.rewards"
+    table_operations: "app.operations"
+    table_rewards: "app.rewards"
 
 tzktapi:
   impl: api
