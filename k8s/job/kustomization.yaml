@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: tezos-delegation
+
+resources:
+- 00-namespace.yaml
+- 01-configmap.yaml
+- 02-secret.yaml
+- 03-service.yaml
+- 04-deployment.yaml
+- 05-pvc.yaml
+- 06-hpa.yaml
+- 07-ingress.yaml
+- 08-network-policy.yaml
+- 09-service-monitor.yaml
+
+commonLabels:
+  app.kubernetes.io/name: tezos-delegation-job
+  app.kubernetes.io/instance: tezos-delegation
+  app.kubernetes.io/part-of: tezos-blockchain
+  app.kubernetes.io/managed-by: kustomize
+
+images:
+- name: tezos-delegation-job
+  newName: tezos-delegation-job
+  newTag: latest

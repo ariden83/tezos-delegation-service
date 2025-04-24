@@ -1,14 +1,14 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: tezos-delegation-service-monitor
+  name: tezos-delegation-job-monitor
   namespace: tezos-delegation
   labels:
     release: prometheus
 spec:
   selector:
     matchLabels:
-      app: tezos-delegation-service
+      app: tezos-delegation-job
   endpoints:
   - port: http
     path: /metrics

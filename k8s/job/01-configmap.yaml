@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tezos-delegation-config
+  namespace: tezos-delegation
+data:
+  config.yaml: |
+    logging:
+      level: info
+      format: json
+      enable_file: false
+      file_path: /var/log/tezos-delegation-job.log
+      graylog:
+        enabled: false
+        url: graylog.example.com
+        port: 12201
+        facility: tezos-delegation-job
+
+    server:
+      port: 8080
+      
+    database:
+      impl: psql
+      psql:
+        driver: postgres
+        host: db
+        port: 5432
+        user: "postgres"
+        password: "postgres"
+        dbname: "tezos_delegations"
+        sslmode: disable
+        table_delegations: "app.delegations"
+    
+    tzktapi:
+      impl: api
+      api:
+        url: https://api.tzkt.io
+      polling_interval: 5 # in minutes
+      
+    metrics:
+      impl: prometheus
+      
+    pagination:
+      limit: 50

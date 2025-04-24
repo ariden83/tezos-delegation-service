@@ -4,4 +4,4 @@ metadata:
   name: tezos-delegation
   labels:
     name: tezos-delegation
-    app: tezos-delegation-service
+    app: tezos-delegation-job

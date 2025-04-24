@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: tezos-delegation-service-ingress
+  name: tezos-delegation-job-ingress
   namespace: tezos-delegation
   annotations:
     kubernetes.io/ingress.class: "nginx"
@@ -22,6 +22,6 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: tezos-delegation-service
+            name: tezos-delegation-job
             port:
               number: 80

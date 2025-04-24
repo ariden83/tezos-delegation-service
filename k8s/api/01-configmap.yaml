@@ -9,12 +9,12 @@ data:
       level: info
       format: json
       enable_file: false
-      file_path: /var/log/tezos-delegation-service.log
+      file_path: /var/log/tezos-delegation-api.log
       graylog:
         enabled: false
         url: graylog.example.com
         port: 12201
-        facility: tezos-delegation-service
+        facility: tezos-delegation-api
 
     server:
       port: 8080

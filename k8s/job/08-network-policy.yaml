@@ -6,7 +6,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app: tezos-delegation-service
+      app: tezos-delegation-job
   policyTypes:
   - Ingress
   - Egress

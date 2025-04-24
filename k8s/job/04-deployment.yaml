@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tezos-delegation-service
+  name: tezos-delegation-job
   namespace: tezos-delegation
   labels:
-    app: tezos-delegation-service
+    app: tezos-delegation-job
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: tezos-delegation-service
+      app: tezos-delegation-job
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -18,11 +18,11 @@ spec:
   template:
     metadata:
       labels:
-        app: tezos-delegation-service
+        app: tezos-delegation-job
     spec:
       containers:
-      - name: tezos-delegation-service
-        image: tezos-delegation-service:latest
+      - name: tezos-delegation-job
+        image: tezos-delegation-job:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080

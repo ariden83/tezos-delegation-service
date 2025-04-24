@@ -16,12 +16,12 @@ resources:
 - 09-service-monitor.yaml
 
 commonLabels:
-  app.kubernetes.io/name: tezos-delegation-service
+  app.kubernetes.io/name: tezos-delegation-api
   app.kubernetes.io/instance: tezos-delegation
   app.kubernetes.io/part-of: tezos-blockchain
   app.kubernetes.io/managed-by: kustomize
 
 images:
-- name: tezos-delegation-service
-  newName: tezos-delegation-service
+- name: tezos-delegation-api
+  newName: tezos-delegation-api
   newTag: latest

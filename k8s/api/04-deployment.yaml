@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tezos-delegation-api
+  namespace: tezos-delegation
+  labels:
+    app: tezos-delegation-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tezos-delegation-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: tezos-delegation-api
+    spec:
+      containers:
+      - name: tezos-delegation-api
+        image: tezos-delegation-api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+        resources:
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+          requests:
+            cpu: "300m"
+            memory: "512Mi"
+        env:
+        - name: TZ
+          value: "UTC"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 2
+        startupProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          failureThreshold: 30
+          periodSeconds: 10
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+        - name: data-volume
+          mountPath: /app/data
+      volumes:
+      - name: config-volume
+        configMap:
+          name: tezos-delegation-config
+          items:
+          - key: config.yaml
+            path: config.yaml
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: tezos-delegation-data-pvc
