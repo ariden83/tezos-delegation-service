@@ -88,8 +88,8 @@ func (uc *syncDelegations) syncHistoricalDelegations(ctx context.Context) error 
 			}
 
 			modelDelegation := &model.Delegation{
-				Delegator: d.Sender.Address,
-				Delegate:  d.Delegate.Address,
+				Delegator: model.WalletAddress(d.Sender.Address),
+				Delegate:  model.WalletAddress(d.Delegate.Address),
 				Amount:    float64(d.Amount) / 1000000.0, // Convert mutez to tez
 				Timestamp: d.Timestamp.Unix(),
 				Level:     d.Level,
@@ -120,6 +120,10 @@ func (uc *syncDelegations) syncHistoricalDelegations(ctx context.Context) error 
 
 		if len(modelAccounts) > 0 {
 			if err := uc.saveAccountsBatch(ctx, modelAccounts, offset); err != nil {
+				return err
+			}
+
+			if err := uc.saveStakingPoolsBatch(ctx, modelAccounts, offset); err != nil {
 				return err
 			}
 		}
@@ -174,6 +178,43 @@ func (uc *syncDelegations) saveAccountsBatch(ctx context.Context, modelAccounts 
 	return nil
 }
 
+// saveStakingPoolsBatch saves a batch of staking pools to the database.
+func (uc *syncDelegations) saveStakingPoolsBatch(ctx context.Context, modelAccounts map[string]*model.Account, offset int) error {
+	stakingPools := make([]model.StakingPool, 0, len(modelAccounts))
+
+	for _, account := range modelAccounts {
+		if account.Type == model.AccountTypeDelegate {
+			stakingPools = append(stakingPools, model.StakingPool{
+				Address:      account.Address,
+				Name:         account.Alias,
+				StakingToken: "XTZ",
+			})
+		}
+	}
+
+	for i := 0; i < len(stakingPools); i += uc.batchSizeDB {
+		end := i + uc.batchSizeDB
+		if end > len(stakingPools) {
+			end = len(stakingPools)
+		}
+
+		batch := stakingPools[i:end]
+
+		if err := uc.dbAdapter.SaveStakingPools(ctx, batch); err != nil {
+			return fmt.Errorf("error saving staking pools batch (offset %d, batch %d-%d): %w", offset, i, end-1, err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+
+	uc.logger.Infof("Successfully saved %d staking pools (offset %d)", len(stakingPools), offset)
+	return nil
+}
+
 // saveDelegations saves a batch of delegations to the database.
 func (uc *syncDelegations) saveDelegations(ctx context.Context, delegations []*model.Delegation, offset int) error {
 	for i := 0; i < len(delegations); i += uc.batchSizeDB {
@@ -215,8 +256,8 @@ func (uc *syncDelegations) syncIncrementalDelegations(ctx context.Context, level
 		}
 
 		modelDelegation := &model.Delegation{
-			Delegator: d.Sender.Address,
-			Delegate:  d.Delegate.Address,
+			Delegator: model.WalletAddress(d.Sender.Address),
+			Delegate:  model.WalletAddress(d.Delegate.Address),
 			Amount:    float64(d.Amount) / 1000000.0, // Convert mutez to tez
 			Timestamp: d.Timestamp.Unix(),
 			Level:     d.Level,

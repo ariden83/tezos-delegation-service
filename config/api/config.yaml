@@ -23,6 +23,7 @@ database:
     table_operations: "app.operations"
     table_rewards: "app.rewards"
     table_accounts: "app.accounts"
+    table_staking_pool: "app.staking_pool"
 
 metrics:
   impl: prometheus

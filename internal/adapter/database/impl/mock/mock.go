@@ -52,7 +52,7 @@ func (m *Mock) GetOperations(ctx context.Context, fromDate, toDate int64, page, 
 }
 
 // GetRewards returns rewards for a given wallet and baker within a date range.
-func (m *Mock) GetRewards(ctx context.Context, fromDate, toDate uint64, wallet, baker model.WalletAddress) ([]model.Reward, error) {
+func (m *Mock) GetRewards(ctx context.Context, fromDate, toDate int64, wallet, baker model.WalletAddress) ([]model.Reward, error) {
 	args := m.Called(ctx, fromDate, toDate, wallet, baker)
 	return args.Get(0).([]model.Reward), args.Error(1)
 }
@@ -78,6 +78,12 @@ func (m *Mock) SaveAccounts(ctx context.Context, accounts []model.Account) error
 // SaveDelegations saves multiple delegations to the repository.
 func (m *Mock) SaveDelegations(ctx context.Context, delegations []*model.Delegation) error {
 	args := m.Called(ctx, delegations)
+	return args.Error(0)
+}
+
+// SaveStakingPools saves multiple staking pools to the repository.
+func (m *Mock) SaveStakingPools(ctx context.Context, stakingPools []model.StakingPool) error {
+	args := m.Called(ctx, stakingPools)
 	return args.Error(0)
 }
 

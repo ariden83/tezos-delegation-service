@@ -167,6 +167,19 @@ func (w *TelemetryWrapper) SaveDelegations(ctx context.Context, delegations []*m
 	return err
 }
 
+// SaveStakingPools saves multiple staking pools and records metrics.
+func (w *TelemetryWrapper) SaveStakingPools(ctx context.Context, stakingPools []model.StakingPool) error {
+	startTime := time.Now()
+	err := w.db.SaveStakingPools(ctx, stakingPools)
+	duration := time.Since(startTime)
+
+	if w.metrics != nil {
+		w.metrics.RecordRepositoryOperation("SaveStakingPools", w.implType, duration, err)
+	}
+
+	return err
+}
+
 // Close closes the repository and records metrics.
 func (w *TelemetryWrapper) Close() error {
 	startTime := time.Now()

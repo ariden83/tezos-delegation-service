@@ -35,6 +35,9 @@ type Adapter interface {
 	// SaveDelegation saves a delegation to the repository.
 	SaveDelegation(ctx context.Context, delegation *model.Delegation) error
 
+	// SaveStakingPools saves multiple staking pools to the repository.
+	SaveStakingPools(ctx context.Context, stakingPools []model.StakingPool) error
+
 	// SaveDelegations saves multiple delegations to the repository.
 	SaveDelegations(ctx context.Context, delegations []*model.Delegation) error
 

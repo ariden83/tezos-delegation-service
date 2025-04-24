@@ -4,14 +4,14 @@ import "time"
 
 // Delegation represents a Tezos delegation.
 type Delegation struct {
-	ID            int64     `db:"id" json:"-"`
-	Delegator     string    `db:"delegator" json:"delegator"`
-	Delegate      string    `db:"delegate" json:"delegate"`
-	Timestamp     int64     `db:"timestamp" json:"-"`
-	TimestampTime string    `db:"-" json:"timestamp"`
-	Amount        float64   `db:"amount" json:"amount"`
-	Level         int64     `db:"level" json:"level"`
-	CreatedAt     time.Time `db:"created_at" json:"-"`
+	ID            int64         `db:"id" json:"-"`
+	Delegator     WalletAddress `db:"delegator" json:"delegator"`
+	Delegate      WalletAddress `db:"delegate" json:"delegate"`
+	Timestamp     int64         `db:"timestamp" json:"-"`
+	TimestampTime string        `db:"-" json:"timestamp"`
+	Amount        float64       `db:"amount" json:"amount"`
+	Level         int64         `db:"level" json:"level"`
+	CreatedAt     time.Time     `db:"created_at" json:"-"`
 }
 
 // PaginationInfo contains pagination metadata.

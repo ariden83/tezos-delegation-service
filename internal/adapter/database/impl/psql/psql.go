@@ -16,6 +16,7 @@ import (
 
 // Config represents database configuration.
 type Config struct {
+	Driver           string `mapstructure:"driver"`
 	Host             string `mapstructure:"host"`
 	Port             int    `mapstructure:"port"`
 	User             string `mapstructure:"user"`
@@ -26,6 +27,7 @@ type Config struct {
 	TableOperations  string `mapstructure:"table_operations"`
 	TableRewards     string `mapstructure:"table_rewards"`
 	TableAccounts    string `mapstructure:"table_accounts"`
+	TableStakingPool string `mapstructure:"table_staking_pool"`
 }
 
 type text interface {
@@ -59,6 +61,7 @@ type psql struct {
 	tableOperations  string
 	tableRewards     string
 	tableAccounts    string
+	tableStakingPool string
 }
 
 // New creates a new SQL delegation repository.
@@ -75,6 +78,7 @@ func New(cfg Config) (database.Adapter, error) {
 		tableDelegations: cfg.TableDelegations,
 		tableOperations:  cfg.TableOperations,
 		tableRewards:     cfg.TableRewards,
+		tableStakingPool: cfg.TableStakingPool,
 	}, nil
 }
 
@@ -306,6 +310,32 @@ func (p *psql) SaveDelegations(ctx context.Context, delegations []*model.Delegat
 
 	for _, delegation := range delegations {
 		_, err := tx.ExecContext(ctx, query, delegation.Delegator, delegation.Delegate, delegation.Timestamp, delegation.Amount, delegation.Level)
+		if err != nil {
+			if errRollBack := tx.Rollback(); errRollBack != nil {
+				return errors.New("query execution error: " + err.Error() + ", rollback error: " + errRollBack.Error())
+			}
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+// SaveStakingPools saves multiple staking pools to the database.
+func (p *psql) SaveStakingPools(ctx context.Context, stakingPools []model.StakingPool) error {
+	tx, err := p.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	query := `
+		INSERT INTO ` + p.tableStakingPool + ` (address, name, staking_token)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT DO NOTHING
+	`
+
+	for _, stakingPool := range stakingPools {
+		_, err := tx.ExecContext(ctx, query, stakingPool.Address, stakingPool.Name, stakingPool.StakingToken)
 		if err != nil {
 			if errRollBack := tx.Rollback(); errRollBack != nil {
 				return errors.New("query execution error: " + err.Error() + ", rollback error: " + errRollBack.Error())

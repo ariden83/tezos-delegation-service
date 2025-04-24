@@ -33,16 +33,16 @@ func (o OperationType) IsValid() bool {
 
 // Operation represents a Tezos operation.
 type Operation struct {
-	ID            int64         `db:"id" json:"id"`
-	SenderID      int64         `db:"sender_id" json:"sender_id"`
-	ContractID    int64         `db:"contract_id" json:"contract_id"`
-	Entrypoint    string        `db:"entrypoint" json:"entrypoint"`
-	Amount        float64       `db:"amount" json:"amount"`
-	Block         string        `db:"block" json:"block"`
-	Timestamp     int64         `db:"timestamp" json:"-"`
-	TimestampTime string        `db:"-" json:"timestamp"`
-	Status        string        `db:"status" json:"status"`
-	Type          OperationType `db:"type" json:"type"`
+	ID              int64         `db:"id" json:"id"`
+	SenderAddress   WalletAddress `db:"sender_address" json:"sender_address"`
+	ContractAddress WalletAddress `db:"contract_address" json:"contract_address"`
+	Entrypoint      string        `db:"entrypoint" json:"entrypoint"`
+	Amount          float64       `db:"amount" json:"amount"`
+	Block           string        `db:"block" json:"block"`
+	Timestamp       int64         `db:"timestamp" json:"-"`
+	TimestampTime   string        `db:"-" json:"timestamp"`
+	Status          string        `db:"status" json:"status"`
+	Type            OperationType `db:"type" json:"type"`
 }
 
 // OperationsResponse is the response format for the API.

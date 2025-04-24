@@ -30,9 +30,9 @@ func Test_GetDelegationHandler_GetDelegations(t *testing.T) {
 	}{
 		{
 			name: "nominal case",
-			getDelegationsFunc: func(ctx context.Context, page, limit, year string, maxID int64) (*model.DelegationResponse, error) {
-				return &model.DelegationResponse{
-					Data: []model.Delegation{{ID: 1}},
+			getDelegationsFunc: func(ctx context.Context, page, limit, year string, maxID int64) (*model.DelegationsResponse, error) {
+				return &model.DelegationsResponse{
+					Delegations: []model.Delegation{{ID: 1}},
 					Pagination: model.PaginationInfo{
 						CurrentPage: 1,
 						PerPage:     50,
@@ -72,7 +72,7 @@ func Test_GetDelegationHandler_GetDelegations(t *testing.T) {
 		},
 		{
 			name: "error - internal service",
-			getDelegationsFunc: func(ctx context.Context, page, limit, year string, maxID int64) (*model.DelegationResponse, error) {
+			getDelegationsFunc: func(ctx context.Context, page, limit, year string, maxID int64) (*model.DelegationsResponse, error) {
 				return nil, errors.New("internal error")
 			},
 			setupContext: func(c *gin.Context) {
@@ -84,8 +84,8 @@ func Test_GetDelegationHandler_GetDelegations(t *testing.T) {
 		},
 		/* {
 			name: "cache hit - not modified",
-			getDelegationsFunc: func(ctx context.Context, page, limit, year string, maxID int64) (*model.DelegationResponse, error) {
-				return &model.DelegationResponse{
+			getDelegationsFunc: func(ctx context.Context, page, limit, year string, maxID int64) (*model.DelegationsResponse, error) {
+				return &model.DelegationsResponse{
 					Data: []model.Delegation{
 						{ID: 1},
 						{ID: 2},
@@ -109,7 +109,7 @@ func Test_GetDelegationHandler_GetDelegations(t *testing.T) {
 				tt.setupContext(c)
 			}
 
-			h := &GetDelegationHandler{
+			h := &GetDelegationsHandler{
 				getDelegationsFunc: tt.getDelegationsFunc,
 			}
 			h.GetDelegations(c)
@@ -195,7 +195,7 @@ func Test_GetDelegationHandler_extractMaxDelegationID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, (&GetDelegationHandler{}).extractMaxDelegationID(tt.c), "extractMaxDelegationID(%v)", tt.c)
+			assert.Equalf(t, tt.want, (&GetDelegationsHandler{}).extractMaxDelegationID(tt.c), "extractMaxDelegationID(%v)", tt.c)
 		})
 	}
 }
@@ -250,7 +250,7 @@ func Test_GetDelegationHandler_setCacheHeaders(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			(&GetDelegationHandler{}).setCacheHeaders(tt.args.c, tt.args.year)
+			(&GetDelegationsHandler{}).setCacheHeaders(tt.args.c, tt.args.year)
 
 			assert.Equal(t, tt.expectedHeader, tt.args.c.Writer.Header().Get("Cache-Control"))
 		})
@@ -260,14 +260,14 @@ func Test_GetDelegationHandler_setCacheHeaders(t *testing.T) {
 func Test_GetDelegationHandler_setETagHeader(t *testing.T) {
 	tests := []struct {
 		name           string
-		response       *model.DelegationResponse
+		response       *model.DelegationsResponse
 		expectedPrefix string
 		expectedLen    int
 	}{
 		{
 			name: "Nominal case - complete response object",
-			response: &model.DelegationResponse{
-				Data: []model.Delegation{
+			response: &model.DelegationsResponse{
+				Delegations: []model.Delegation{
 					{ID: 1, Amount: 100},
 					{ID: 2, Amount: 200},
 				},
@@ -282,7 +282,7 @@ func Test_GetDelegationHandler_setETagHeader(t *testing.T) {
 		},
 		{
 			name:           "Empty response object",
-			response:       &model.DelegationResponse{},
+			response:       &model.DelegationsResponse{},
 			expectedPrefix: "\"",
 			expectedLen:    66,
 		},
@@ -300,7 +300,7 @@ func Test_GetDelegationHandler_setETagHeader(t *testing.T) {
 			c, _ := gin.CreateTestContext(w)
 			c.Request, _ = http.NewRequest("GET", "/", nil)
 
-			h := &GetDelegationHandler{}
+			h := &GetDelegationsHandler{}
 			h.setETagHeader(c, tt.response)
 
 			etag := w.Header().Get("ETag")
@@ -368,7 +368,7 @@ func Test_GetDelegationHandler_setMaxDelegationIDHeader(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			(&GetDelegationHandler{}).setMaxDelegationIDHeader(tt.args.c, tt.args.maxDelegationID)
+			(&GetDelegationsHandler{}).setMaxDelegationIDHeader(tt.args.c, tt.args.maxDelegationID)
 		})
 	}
 }
@@ -435,7 +435,7 @@ func Test_GetDelegationHandler_setPaginationHeaders(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			(&GetDelegationHandler{}).setPaginationHeaders(tt.args.c, tt.args.pInfo)
+			(&GetDelegationsHandler{}).setPaginationHeaders(tt.args.c, tt.args.pInfo)
 		})
 	}
 }
@@ -474,7 +474,7 @@ func Test_GetDelegationHandler_setRequestIDHeader(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			(&GetDelegationHandler{}).setRequestIDHeader(tt.args.c)
+			(&GetDelegationsHandler{}).setRequestIDHeader(tt.args.c)
 		})
 	}
 }
@@ -530,7 +530,7 @@ func Test_GetDelegationHandler_validateRequestParams(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, got2, err := (&GetDelegationHandler{}).validateRequestParams(tt.c)
+			got, got1, got2, err := (&GetDelegationsHandler{}).validateRequestParams(tt.c)
 			if !tt.wantErr(t, err, fmt.Sprintf("validateRequestParams(%v)", tt.c)) {
 				return
 			}
@@ -545,29 +545,29 @@ func Test_NewGetDelegationHandler(t *testing.T) {
 	tests := []struct {
 		name               string
 		getDelegationsFunc usecase.GetDelegationsFunc
-		want               *GetDelegationHandler
+		want               *GetDelegationsHandler
 	}{
 		{
 			name: "nominal case",
-			getDelegationsFunc: func(ctx context.Context, page, limit, year string, maxID int64) (*model.DelegationResponse, error) {
-				return &model.DelegationResponse{}, nil
+			getDelegationsFunc: func(ctx context.Context, page, limit, year string, maxID int64) (*model.DelegationsResponse, error) {
+				return &model.DelegationsResponse{}, nil
 			},
 			want: nil,
 		},
 		{
 			name:               "error case - nil function",
 			getDelegationsFunc: nil,
-			want: &GetDelegationHandler{
+			want: &GetDelegationsHandler{
 				getDelegationsFunc: nil,
 			},
 		},
 		{
 			name: "error case - function returns error",
-			getDelegationsFunc: func(ctx context.Context, page, limit, year string, maxID int64) (*model.DelegationResponse, error) {
+			getDelegationsFunc: func(ctx context.Context, page, limit, year string, maxID int64) (*model.DelegationsResponse, error) {
 				return nil, errors.New("internal error")
 			},
-			want: &GetDelegationHandler{
-				getDelegationsFunc: func(ctx context.Context, page, limit, year string, maxID int64) (*model.DelegationResponse, error) {
+			want: &GetDelegationsHandler{
+				getDelegationsFunc: func(ctx context.Context, page, limit, year string, maxID int64) (*model.DelegationsResponse, error) {
 					return nil, errors.New("internal error")
 				},
 			},
@@ -575,7 +575,7 @@ func Test_NewGetDelegationHandler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewGetDelegationHandler(uint16(50), tt.getDelegationsFunc)
+			handler := NewGetDelegationsHandler(uint16(50), tt.getDelegationsFunc)
 			assert.NotNil(t, handler)
 
 			if tt.name == "nominal case" {
