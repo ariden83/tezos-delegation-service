@@ -89,8 +89,13 @@ func (p *Poller) Run(ctx context.Context) {
 				go func() {
 					defer syncMutex.Unlock()
 
+					now := time.Now().UTC()
+					syncType := determineSyncType(now)
+
+					syncFuncs := p.getSyncFuncsByType(syncType)
 					failedOps = make(map[string]model.SyncFunc)
-					if err := p.performMultiSync(ctx, "regular", p.allSyncFuncs, failedOps); err != nil {
+
+					if err := p.performMultiSync(ctx, "regular", syncFuncs, failedOps); err != nil {
 						consecutiveErrors++
 						p.logger.WithField("consecutiveErrors", consecutiveErrors).
 							WithField("failedOps", len(failedOps)).
@@ -117,6 +122,37 @@ func (p *Poller) Run(ctx context.Context) {
 			} else {
 				p.logger.Debug("Skipping sync as previous sync is still running")
 			}
+		}
+	}
+}
+
+// determineSyncType determines the type of sync to perform based on the current time.
+func determineSyncType(now time.Time) string {
+	hour := now.Hour()
+
+	switch {
+	case hour == 4:
+		return "historical"
+	case hour%6 == 0:
+		return "rewards"
+	default:
+		return "regular"
+	}
+}
+
+// getSyncFuncsByType returns the appropriate sync functions based on the sync type.
+func (p *Poller) getSyncFuncsByType(syncType string) map[string]model.SyncFunc {
+	switch syncType {
+	case "historical":
+		return p.allSyncFuncs
+	case "rewards":
+		return map[string]model.SyncFunc{
+			"rewards": p.allSyncFuncs["rewards"],
+		}
+	default:
+		return map[string]model.SyncFunc{
+			"delegations": p.allSyncFuncs["delegations"],
+			"operations":  p.allSyncFuncs["operations"],
 		}
 	}
 }
