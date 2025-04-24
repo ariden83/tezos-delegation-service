@@ -42,6 +42,14 @@ func NewGetOperationsFunc(defaultLimit uint16, adapter database.Adapter, metrics
 
 // GetOperations returns delegations with pagination and optional year filter.
 func (uc *getOperations) GetOperations(ctx context.Context, input GetOperationsInput) (*model.OperationsResponse, error) {
+	var fromTimestamp, toTimestamp int64
+	if input.FromDate != nil {
+		fromTimestamp = input.FromDate.Unix()
+	}
+	if input.ToDate != nil {
+		toTimestamp = input.ToDate.Unix()
+	}
+
 	page, err := uc.parsePage(input.Page)
 	if err != nil {
 		return nil, err
@@ -52,7 +60,7 @@ func (uc *getOperations) GetOperations(ctx context.Context, input GetOperationsI
 		return nil, err
 	}
 
-	operations, err := uc.dbAdapter.GetOperations(ctx, page, limit, input.Type, input.Wallet, input.Backer)
+	operations, err := uc.dbAdapter.GetOperations(ctx, fromTimestamp, toTimestamp, page, limit, input.Type, input.Wallet, input.Backer)
 	if err != nil {
 		return nil, err
 	}
@@ -116,28 +124,6 @@ func (uc *getOperations) parseLimit(limitStr string) (uint16, error) {
 		limit = uint16(l)
 	}
 	return limit, nil
-}
-
-// parseYear parses the year from the string and returns it as an integer.
-func (uc *getOperations) parseYear(yearStr string) (uint16, error) {
-	var year uint16 = 0
-	if yearStr != "" {
-		y, err := strconv.Atoi(yearStr)
-		if err != nil {
-			return 0, err
-		}
-		if y <= 0 {
-			return 0, errors.New("year must be a positive number")
-		}
-
-		currentYear := time.Now().Year()
-		if y > currentYear {
-			return 0, errors.New("year cannot exceed the current year")
-		}
-
-		year = uint16(y)
-	}
-	return year, nil
 }
 
 // withMonitorer wraps the GetOperations function with telemetry monitoring.

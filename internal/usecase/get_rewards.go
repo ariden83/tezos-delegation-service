@@ -39,7 +39,14 @@ func NewGetRewardsFunc(defaultLimit uint16, adapter database.Adapter, metricsCli
 
 // GetRewards returns delegations with pagination and optional year filter.
 func (uc *getRewards) GetRewards(ctx context.Context, input GetRewardsInput) (*model.RewardsResponse, error) {
-	rewards, err := uc.dbAdapter.GetRewards(ctx, input.FromDate, input.ToDate, input.Wallet, input.Backer)
+	var fromTimestamp, toTimestamp int64
+	if input.FromDate != nil {
+		fromTimestamp = input.FromDate.Unix()
+	}
+	if input.ToDate != nil {
+		toTimestamp = input.ToDate.Unix()
+	}
+	rewards, err := uc.dbAdapter.GetRewards(ctx, fromTimestamp, toTimestamp, input.Wallet, input.Backer)
 	if err != nil {
 		return nil, err
 	}

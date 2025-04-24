@@ -46,9 +46,15 @@ func (m *Mock) GetHighestBlockLevel(ctx context.Context) (uint64, error) {
 }
 
 // GetOperations returns operations with pagination and optional filters.
-func (m *Mock) GetOperations(ctx context.Context, page, limit uint16, operationType model.OperationType, wallet, baker model.WalletAddress) ([]model.Operation, error) {
-	args := m.Called(ctx, page, limit, operationType, wallet, baker)
+func (m *Mock) GetOperations(ctx context.Context, fromDate, toDate int64, page, limit uint16, operationType model.OperationType, wallet, baker model.WalletAddress) ([]model.Operation, error) {
+	args := m.Called(ctx, fromDate, toDate, page, limit, operationType, wallet, baker)
 	return args.Get(0).([]model.Operation), args.Error(1)
+}
+
+// GetRewards returns rewards for a given wallet and baker within a date range.
+func (m *Mock) GetRewards(ctx context.Context, fromDate, toDate uint64, wallet, baker model.WalletAddress) ([]model.Reward, error) {
+	args := m.Called(ctx, fromDate, toDate, wallet, baker)
+	return args.Get(0).([]model.Reward), args.Error(1)
 }
 
 // SaveDelegation saves a delegation to the repository.

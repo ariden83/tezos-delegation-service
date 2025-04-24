@@ -21,7 +21,10 @@ type Adapter interface {
 	GetHighestBlockLevel(ctx context.Context) (uint64, error)
 
 	// GetOperations returns operations with pagination and optional filters.
-	GetOperations(ctx context.Context, page, limit uint16, operationType model.OperationType, wallet, baker model.WalletAddress) ([]model.Operation, error)
+	GetOperations(ctx context.Context, fromDate, toDate int64, page, limit uint16, operationType model.OperationType, wallet, baker model.WalletAddress) ([]model.Operation, error)
+
+	// GetRewards returns rewards for a given wallet and baker within a date range.
+	GetRewards(ctx context.Context, fromDate, toDate int64, wallet, baker model.WalletAddress) ([]model.Reward, error)
 
 	// SaveDelegation saves a delegation to the repository.
 	SaveDelegation(ctx context.Context, delegation *model.Delegation) error

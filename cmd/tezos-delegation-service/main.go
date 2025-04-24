@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"log"
+
 	"github.com/tezos-delegation-service/cmd/tezos-delegation-service/api/http"
 	"github.com/tezos-delegation-service/cmd/tezos-delegation-service/config"
 	"github.com/tezos-delegation-service/cmd/tezos-delegation-service/job/poller"
@@ -9,7 +11,6 @@ import (
 	metricsfactory "github.com/tezos-delegation-service/internal/adapter/metrics/factory"
 	tzktapiadapterfactory "github.com/tezos-delegation-service/internal/adapter/tzktapi/factory"
 	"github.com/tezos-delegation-service/pkg/logger"
-	"log"
 )
 
 func main() {

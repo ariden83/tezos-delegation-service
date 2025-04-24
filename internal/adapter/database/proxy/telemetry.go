@@ -68,9 +68,9 @@ func (w *TelemetryWrapper) GetDelegations(ctx context.Context, page uint32, limi
 }
 
 // GetOperations retrieves operations with pagination and records metrics.
-func (w *TelemetryWrapper) GetOperations(ctx context.Context, page, limit uint16, operationType model.OperationType, wallet, baker model.WalletAddress) ([]model.Operation, error) {
+func (w *TelemetryWrapper) GetOperations(ctx context.Context, fromDate, toDate int64, page, limit uint16, operationType model.OperationType, wallet, baker model.WalletAddress) ([]model.Operation, error) {
 	startTime := time.Now()
-	delegations, err := w.db.GetOperations(ctx, page, limit, operationType, wallet, baker)
+	delegations, err := w.db.GetOperations(ctx, fromDate, toDate, page, limit, operationType, wallet, baker)
 	duration := time.Since(startTime)
 
 	if w.metrics != nil {
@@ -78,6 +78,19 @@ func (w *TelemetryWrapper) GetOperations(ctx context.Context, page, limit uint16
 	}
 
 	return delegations, err
+}
+
+// GetRewards retrieves rewards for a given wallet and baker within a date range and records metrics.
+func (w *TelemetryWrapper) GetRewards(ctx context.Context, fromDate, toDate int64, wallet, baker model.WalletAddress) ([]model.Reward, error) {
+	startTime := time.Now()
+	rewards, err := w.db.GetRewards(ctx, fromDate, toDate, wallet, baker)
+	duration := time.Since(startTime)
+
+	if w.metrics != nil {
+		w.metrics.RecordRepositoryOperation("GetRewards", w.implType, duration, err)
+	}
+
+	return rewards, err
 }
 
 // GetHighestBlockLevel retrieves the highest block level and records metrics.

@@ -89,7 +89,7 @@ func (p *psql) GetHighestBlockLevel(ctx context.Context) (uint64, error) {
 }
 
 // GetOperations returns delegations with pagination and optional year, operationType, and maxDelegationID filters.
-func (p *psql) GetOperations(ctx context.Context, page, limit uint16, operationType model.OperationType, wallet, baker model.WalletAddress) ([]model.Operation, error) {
+func (p *psql) GetOperations(ctx context.Context, fromDate, toDate int64, page, limit uint16, operationType model.OperationType, wallet, baker model.WalletAddress) ([]model.Operation, error) {
 	var operations []model.Operation
 	if page < 1 {
 		page = 1
@@ -156,6 +156,11 @@ func (p *psql) GetOperations(ctx context.Context, page, limit uint16, operationT
 	}
 
 	return operations, nil
+}
+
+// GetRewards returns rewards for a given wallet and baker within a date range.
+func (p *psql) GetRewards(ctx context.Context, fromDate, toDate uint64, wallet, baker model.WalletAddress) ([]model.Reward, error) {
+	return nil, nil
 }
 
 // GetLatestDelegation returns the latest delegation from the database.

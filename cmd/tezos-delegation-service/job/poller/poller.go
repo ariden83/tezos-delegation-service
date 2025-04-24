@@ -2,6 +2,7 @@ package poller
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -10,32 +11,53 @@ import (
 	"github.com/tezos-delegation-service/internal/adapter/database"
 	"github.com/tezos-delegation-service/internal/adapter/metrics"
 	"github.com/tezos-delegation-service/internal/adapter/tzktapi"
+	"github.com/tezos-delegation-service/internal/model"
 	"github.com/tezos-delegation-service/internal/usecase"
 )
+
+// usecases holds the use case functions.
+type usecases struct {
+	ucSyncDelegations model.SyncFunc
+	ucSyncOperations  model.SyncFunc
+	ucSyncRewards     model.SyncFunc
+}
 
 // Poller is a structure that manages the polling process for Tezos delegations.
 type Poller struct {
 	dbAdapter database.Adapter
 	logger    *logrus.Entry
 
+	maxConsecutiveErrors int
+
 	pollingInterval time.Duration
 	pollingCtx      context.Context
 	pollingCancel   context.CancelFunc
 	pollingWg       *sync.WaitGroup
 
-	tzktAdapter       tzktapi.Adapter
-	ucSyncDelegations usecase.SyncDelegationsFunc
+	tzktAdapter  tzktapi.Adapter
+	allSyncFuncs map[string]model.SyncFunc
 }
 
 // New creates a new Poller instance with the provided TzKT API adapter, database adapter, polling interval, and logger.
 func New(tzktAdapter tzktapi.Adapter, dbAdapter database.Adapter, pollingInterval time.Duration, metricClient metrics.Adapter, logger *logrus.Entry) *Poller {
-	return &Poller{
-		dbAdapter:         dbAdapter,
-		logger:            logger.WithField("component", "poller"),
-		pollingInterval:   pollingInterval,
-		pollingWg:         &sync.WaitGroup{},
-		tzktAdapter:       tzktAdapter,
+	uc := usecases{
 		ucSyncDelegations: usecase.NewSyncDelegationsFunc(tzktAdapter, dbAdapter, metricClient, logger),
+		ucSyncOperations:  usecase.NewSyncOperationsFunc(tzktAdapter, dbAdapter, metricClient, logger),
+		ucSyncRewards:     usecase.NewSyncRewardsFunc(tzktAdapter, dbAdapter, metricClient, logger),
+	}
+
+	return &Poller{
+		dbAdapter:            dbAdapter,
+		logger:               logger.WithField("component", "poller"),
+		pollingInterval:      pollingInterval,
+		pollingWg:            &sync.WaitGroup{},
+		maxConsecutiveErrors: 5,
+		tzktAdapter:          tzktAdapter,
+		allSyncFuncs: map[string]model.SyncFunc{
+			"delegations": uc.ucSyncDelegations,
+			"operations":  uc.ucSyncOperations,
+			"rewards":     uc.ucSyncRewards,
+		},
 	}
 }
 
@@ -44,28 +66,18 @@ func (p *Poller) Run(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	highestLevel, err := p.dbAdapter.GetHighestBlockLevel(ctx)
-	if err != nil {
-		p.logger.Errorf("Error checking highest block level: %v", err)
+	failedOps := make(map[string]model.SyncFunc)
+	if err := p.performMultiSync(ctx, "historical", p.allSyncFuncs, failedOps); err != nil {
+		p.logger.WithError(err).Error("Historical sync failed, aborting polling")
 		return
-	}
-
-	if highestLevel == 0 {
-		p.logger.Info("No delegations found in database. Starting historical sync...")
-		if err := p.ucSyncDelegations(ctx); err != nil {
-			p.logger.Errorf("Error syncing historical delegations: %v", err)
-			return
-		}
-		p.logger.Info("Historical sync completed")
 	}
 
 	p.logger.Info("Starting delegation poller...")
 	ticker := time.NewTicker(p.pollingInterval)
 	defer ticker.Stop()
 
-	if err := p.ucSyncDelegations(ctx); err != nil {
-		p.logger.Errorf("Error in initial sync: %v", err)
-	}
+	var syncMutex sync.Mutex
+	consecutiveErrors := 0
 
 	for {
 		select {
@@ -73,44 +85,64 @@ func (p *Poller) Run(ctx context.Context) {
 			p.logger.Info("Polling stopped")
 			return
 		case <-ticker.C:
-			if err := p.ucSyncDelegations(ctx); err != nil {
-				p.logger.Errorf("Error syncing delegations: %v", err)
+			if syncMutex.TryLock() {
+				go func() {
+					defer syncMutex.Unlock()
+
+					failedOps = make(map[string]model.SyncFunc)
+					if err := p.performMultiSync(ctx, "regular", p.allSyncFuncs, failedOps); err != nil {
+						consecutiveErrors++
+						p.logger.WithField("consecutiveErrors", consecutiveErrors).
+							WithField("failedOps", len(failedOps)).
+							WithError(err).
+							Error("Regular sync failed")
+
+						if consecutiveErrors >= p.maxConsecutiveErrors {
+							p.logger.Warn("Too many consecutive sync errors, attempting recovery sync for failed operations")
+							time.Sleep(time.Minute)
+
+							if len(failedOps) > 0 {
+								if recoveryErr := p.performMultiSync(ctx, "recovery", failedOps, nil); recoveryErr == nil {
+									consecutiveErrors = 0
+									p.logger.Info("Recovery sync successful")
+								} else {
+									p.logger.WithError(recoveryErr).Error("Recovery sync also failed")
+								}
+							}
+						}
+					} else {
+						consecutiveErrors = 0
+					}
+				}()
+			} else {
+				p.logger.Debug("Skipping sync as previous sync is still running")
 			}
 		}
 	}
 }
 
-// StartPolling starts polling for new delegations.
-func (p *Poller) StartPolling(ctx context.Context) {
-	p.StopPolling()
+// performMultiSync performs multiple sync operations concurrently and logs the results.
+func (p *Poller) performMultiSync(ctx context.Context, syncType string, syncFuncs map[string]model.SyncFunc, failedOps map[string]model.SyncFunc) error {
+	start := time.Now()
+	var errs []error
 
-	p.pollingCtx, p.pollingCancel = context.WithCancel(ctx)
+	for name, syncFunc := range syncFuncs {
+		if err := syncFunc(ctx); err != nil {
+			p.logger.WithError(err).Errorf("Error in %s sync (%s)", syncType, name)
+			errs = append(errs, err)
 
-	p.pollingWg.Add(1)
-	go func() {
-		defer p.pollingWg.Done()
-
-		ticker := time.NewTicker(p.pollingInterval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				if err := p.ucSyncDelegations(p.pollingCtx); err != nil {
-					p.logger.Errorf("Error syncing delegations: %v", err)
-				}
-			case <-p.pollingCtx.Done():
-				return
+			if failedOps != nil {
+				failedOps[name] = syncFunc
 			}
+		} else {
+			p.logger.Infof("%s sync (%s) succeeded", syncType, name)
 		}
-	}()
-}
-
-// StopPolling stops polling for new delegations.
-func (p *Poller) StopPolling() {
-	if p.pollingCancel != nil {
-		p.pollingCancel()
-		p.pollingWg.Wait()
-		p.pollingCancel = nil
 	}
+
+	p.logger.WithField("duration", time.Since(start)).Infof("Multi-sync %s completed", syncType)
+
+	if len(errs) > 0 {
+		return errors.New("one or more sync operations failed")
+	}
+	return nil
 }

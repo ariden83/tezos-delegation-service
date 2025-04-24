@@ -13,26 +13,18 @@ import (
 	"github.com/tezos-delegation-service/internal/model"
 )
 
-// batchSize defines the number of delegations to fetch in each API call.
-const batchSize = 1000
-
 // syncDelegations handles business logic for syncing delegations.
 type syncDelegations struct {
+	batchSize      int
 	dbAdapter      database.Adapter
 	logger         *logrus.Entry
 	tzktApiAdapter tzktapi.Adapter
 }
 
-// SyncDelegationsFunc defines the function signature for syncing delegations.
-type SyncDelegationsFunc func(ctx context.Context) error
-
 // NewSyncDelegationsFunc creates a new instance of syncDelegations.
-func NewSyncDelegationsFunc(tzktAdapter tzktapi.Adapter, dbAdapter database.Adapter, metricsClient metrics.Adapter, logger *logrus.Entry) SyncDelegationsFunc {
-	if tzktAdapter == nil || dbAdapter == nil {
-		return nil
-	}
-
+func NewSyncDelegationsFunc(tzktAdapter tzktapi.Adapter, dbAdapter database.Adapter, metricsClient metrics.Adapter, logger *logrus.Entry) model.SyncFunc {
 	uc := &syncDelegations{
+		batchSize:      1000,
 		dbAdapter:      dbAdapter,
 		logger:         logger.WithField("usecase", "sync_delegations"),
 		tzktApiAdapter: tzktAdapter,
@@ -75,7 +67,7 @@ func (uc *syncDelegations) syncHistoricalDelegations(ctx context.Context) error 
 		default:
 		}
 
-		delegations, err := uc.tzktApiAdapter.FetchDelegations(ctx, batchSize, offset)
+		delegations, err := uc.tzktApiAdapter.FetchDelegations(ctx, uc.batchSize, offset)
 		if err != nil {
 			return fmt.Errorf("error fetching historical delegations (offset %d): %w", offset, err)
 		}
@@ -116,7 +108,7 @@ func (uc *syncDelegations) syncHistoricalDelegations(ctx context.Context) error 
 			uc.logger.Infof("Synced %d historical delegations up to level %d\n", totalProcessed, lastSavedLevel)
 		}
 
-		offset += batchSize
+		offset += uc.batchSize
 
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -164,7 +156,7 @@ func (uc *syncDelegations) syncIncrementalDelegations(ctx context.Context, level
 }
 
 // withMonitorer wraps the SyncDelegations function with monitoring capabilities.
-func (uc *syncDelegations) withMonitorer(syncDelegations SyncDelegationsFunc, metricsClient metrics.Adapter) SyncDelegationsFunc {
+func (uc *syncDelegations) withMonitorer(syncDelegations model.SyncFunc, metricsClient metrics.Adapter) model.SyncFunc {
 	return func(ctx context.Context) (err error) {
 		startTime := time.Now()
 
