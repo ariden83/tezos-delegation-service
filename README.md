@@ -1,11 +1,89 @@
 # Tezos Delegation Services
 
-A Go service that collects and exposes delegations made on the Tezos protocol through a RESTful API, utilizing data from the TzKT API.
-This service is designed to be lightweight and efficient, making it easy to integrate into existing systems or use as a standalone application.
-It continuously polls the TzKT API for delegation data and stores it in a PostgreSQL database, providing a simple API for querying this data.
-The service is built with a focus on performance, reliability, and ease of use, making it suitable for both development and production environments.
-This project is part of the Tezos ecosystem and aims to provide developers and users with easy access to delegation data, enabling better insights into the Tezos network.
+A Go service that indexes, stores, and exposes staking-related operations on the Tezos protocol through a RESTful API.
 
+This service collects data from the public [TzKT API](https://api.tzkt.io), processes it, and stores it into a PostgreSQL database. It focuses on operations such as:
+
+- Delegations (to bakers / staking pools)
+- On-chain staking actions (`stake`, `unstake`, `claim_rewards`)
+- Reward tracking (for bakers and delegators)
+
+It is designed to be **lightweight**, **modular**, and **production-ready**, offering a clean and efficient way to integrate Tezos staking data into your backend systems, dashboards, or applications.
+
+---
+
+## Features
+
+- **Data synchronization**: Continuously polls TzKT to fetch historical and real-time delegation and reward data
+- **PostgreSQL-backed storage**: Structured schema to store accounts, staking pools, operations, and rewards
+- **RESTful API**: Exposes endpoints to retrieve delegation activity, reward history, and staking metadata
+- **Built in Go**: Fast, concurrent, and robust implementation
+- **Idempotent sync logic**: Can resume from the last synced block level thanks to a sync state mechanism
+- **Extensible**: Easily extend schema and logic to support other Tezos tokens or contract-based staking
+
+## Architecture
+
+```psql
+      +------------------------+
+      |     TzKT API          |
+      |  (Tezos Indexer)      |
+      +-----------+-----------+
+                  |
+           (HTTP polling)
+                  v
+      +------------------------+
+      |   Sync Worker (Go)     | <-- Historical & real-time sync
+      +-----------+------------+
+                  |
+           (Normalized data)
+                  v
+      +------------------------+
+      |   PostgreSQL Database  | <-- accounts, delegations, staking_pools, rewards
+      +-----------+------------+
+                  |
+           (RESTful queries)
+                  v
+      +------------------------+
+      |     API Server (Go)    | <-- Exposes staking data to clients
+      +------------------------+
+```
+
+## Tables
+
+- `accounts` – wallet addresses, bakers, contracts (with type)
+- `staking_pools` – known bakers with metadata
+- `delegations` – historical delegation operations
+- `staking_operations` – `stake`, `unstake`, `claim_rewards` entries
+- `rewards` – staking rewards per cycle and address
+- `sync_state` – stores the latest synced block/cycle for resuming sync
+
+---
+
+## Use Cases
+
+- Monitor delegations to a specific baker or address
+- Track staking rewards over time
+- Build dashboards and analytics for XTZ stakers
+- Power alerts or reports for institutions
+- Backfill staking history for a wallet/exchange
+
+---
+
+## Setup
+
+1. **Configure environment** (database, API batch sizes, etc.)
+2. **Run migration** to initialize DB schema
+3. **Start the sync worker** to fetch historical data
+4. **Launch the REST API** to expose endpoints
+
+---
+
+## Roadmap Ideas
+
+- [ ] Add Prometheus metrics for sync and API performance
+- [ ] Add support for smart contract staking tokens
+- [ ] Implement webhook or pub/sub system for real-time updates
+- [ ] Extend to other Tezos tokens (e.g., wXTZ, kDAO)
 
 ## Features
 
@@ -121,7 +199,12 @@ Returns a paginated list of Tezos delegations ordered by most recent first.
       "delegator": "tz1a1SAaXRt9yoGMx29rh9FsBF4UzmvojdTL",
       "level": "2338084"
     },
-    ...
+    {
+      "timestamp": "2022-05-05T06:29:14Z",
+      "amount": "125896",
+      "delegator": "tz1a1SAaXRt9yoGMx29rh9FsBF4UzmvojdTL",
+      "level": "2338084"
+    }
   ]
 }
 ```
@@ -228,3 +311,12 @@ sqitch add new_migration_name --requires previous_migration
 ### PostgreSQL Support
 
 For Docker/Kubernetes deployments using PostgreSQL, we provide separate Sqitch configuration in the `sqitch_pg` directory. The Docker setup automatically applies these migrations when the container starts.
+
+## Contributions
+
+Contributions, issues, and suggestions are welcome! Feel free to open a PR or start a discussion.
+
+
+## Why this project?
+
+This service acts as a simplified indexer tailored for **staking-related insights on Tezos**, offering a developer-friendly way to query, visualize, or integrate delegation data — a critical piece for wallets, explorers, and staking providers.

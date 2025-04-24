@@ -47,7 +47,7 @@ func Test_NewServer(t *testing.T) {
 				assert.NotNil(t, s.healthService)
 				assert.NotNil(t, s.router)
 				assert.NotNil(t, s.handlers)
-				assert.NotNil(t, s.handlers.getDelegationHandler)
+				assert.NotNil(t, s.handlers.getDelegationsHandler)
 				assert.Equal(t, logger, s.logger)
 				assert.Equal(t, mockMetrics, s.metrics)
 			},
@@ -133,9 +133,9 @@ func Test_Server_SetupRoutes(t *testing.T) {
 	mockMetrics := metricsnoop.New()
 	logger := logrus.NewEntry(logrus.New())
 
-	mockHandler := &GetDelegationHandler{}
+	mockHandler := &GetDelegationsHandler{}
 	mockHandlers := &handlers{
-		getDelegationHandler: mockHandler,
+		getDelegationsHandler: mockHandler,
 	}
 
 	tests := []struct {
@@ -177,7 +177,7 @@ func Test_Server_SetupRoutes(t *testing.T) {
 				port:          8080,
 				router:        gin.New(),
 				handlers: &handlers{
-					getDelegationHandler: nil,
+					getDelegationsHandler: nil,
 				},
 			},
 			testFunc: func(t *testing.T, s *Server) {
@@ -238,16 +238,6 @@ func Test_Server_SetupRoutes(t *testing.T) {
 	}
 }
 
-func Test_PrepareShutdown_v2(t *testing.T) {
-	logger := logrus.NewEntry(logrus.New())
-
-	server := NewServer(uint16(8080), uint16(50), databaseadaptermock.New(), metricsnoop.New(), logger).SetupRoutes()
-	assert.False(t, server.healthService.shutdownStarted)
-
-	server.PrepareShutdown()
-	assert.True(t, server.healthService.shutdownStarted)
-}
-
 func Test_Server_WaitForShutdown(t *testing.T) {
 	mockLogger := logrus.NewEntry(logrus.New())
 
@@ -258,7 +248,7 @@ func Test_Server_WaitForShutdown(t *testing.T) {
 	router := gin.New()
 
 	h := &handlers{
-		getDelegationHandler: &GetDelegationHandler{},
+		getDelegationsHandler: &GetDelegationsHandler{},
 	}
 
 	s := &Server{
