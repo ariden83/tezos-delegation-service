@@ -5,8 +5,8 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS app.staking_operations (
     id SERIAL PRIMARY KEY,
-    sender_address BIGINT NOT NULL REFERENCES app.accounts(address),
-    contract_address BIGINT NOT NULL REFERENCES app.accounts(address),
+    sender_address TEXT NOT NULL REFERENCES app.accounts(address),
+    contract_address TEXT NOT NULL REFERENCES app.accounts(address),
     entrypoint TEXT NOT NULL,
     amount DOUBLE PRECISION NOT NULL,
     block TEXT NOT NULL,

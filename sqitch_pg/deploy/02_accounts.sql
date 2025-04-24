@@ -3,11 +3,13 @@
 
 BEGIN;
 
+CREATE TYPE account_type AS ENUM ('wallet', 'contract', 'baker');
+
 CREATE TABLE IF NOT EXISTS app.accounts (
     id SERIAL PRIMARY KEY,
     address TEXT NOT NULL UNIQUE,
     alias TEXT,
-    type TEXT NOT NULL,
+    type account_type NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

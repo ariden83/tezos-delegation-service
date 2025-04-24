@@ -5,8 +5,8 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS app.rewards (
     id SERIAL PRIMARY KEY,
-    recipient_address BIGINT NOT NULL REFERENCES app.accounts(address),
-    source_address BIGINT NOT NULL REFERENCES app.accounts(address),
+    recipient_address TEXT NOT NULL REFERENCES app.accounts(address),
+    source_address TEXT NOT NULL REFERENCES app.accounts(address),
     cycle BIGINT NOT NULL,
     amount DOUBLE PRECISION NOT NULL,
     timestamp BIGINT NOT NULL,

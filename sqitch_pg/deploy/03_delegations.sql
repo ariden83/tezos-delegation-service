@@ -5,8 +5,8 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS app.delegations (
     id SERIAL PRIMARY KEY,
-    sender_address BIGINT NOT NULL REFERENCES app.accounts(address),
-    delegate_address BIGINT NOT NULL REFERENCES app.accounts(address),
+    sender_address TEXT NOT NULL REFERENCES app.accounts(address),
+    delegate_address TEXT NOT NULL REFERENCES app.accounts(address),
     delegator TEXT NOT NULL,
     delegate TEXT NOT NULL DEFAULT '',
     level BIGINT NOT NULL,
