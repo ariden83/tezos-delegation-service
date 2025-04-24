@@ -1,4 +1,4 @@
-# Tezos Delegation Service
+# Tezos Delegation Services
 
 A Go service that collects and exposes delegations made on the Tezos protocol through a RESTful API, utilizing data from the TzKT API.
 This service is designed to be lightweight and efficient, making it easy to integrate into existing systems or use as a standalone application.

@@ -159,7 +159,7 @@ func (p *psql) GetOperations(ctx context.Context, fromDate, toDate int64, page, 
 }
 
 // GetRewards returns rewards for a given wallet and baker within a date range.
-func (p *psql) GetRewards(ctx context.Context, fromDate, toDate uint64, wallet, baker model.WalletAddress) ([]model.Reward, error) {
+func (p *psql) GetRewards(ctx context.Context, fromDate, toDate int64, wallet, baker model.WalletAddress) ([]model.Reward, error) {
 	return nil, nil
 }
 
