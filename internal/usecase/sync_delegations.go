@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -16,7 +15,8 @@ import (
 
 // syncDelegations handles business logic for syncing delegations.
 type syncDelegations struct {
-	batchSize      int
+	batchSizeAPI   int
+	batchSizeDB    int
 	dbAdapter      database.Adapter
 	logger         *logrus.Entry
 	tzktApiAdapter tzktapi.Adapter
@@ -26,7 +26,8 @@ type syncDelegations struct {
 // NewSyncDelegationsFunc creates a new instance of syncDelegations.
 func NewSyncDelegationsFunc(tzktAdapter tzktapi.Adapter, dbAdapter database.Adapter, metricsClient metrics.Adapter, logger *logrus.Entry) model.SyncFunc {
 	uc := &syncDelegations{
-		batchSize:      1000,
+		batchSizeAPI:   1000,
+		batchSizeDB:    100,
 		dbAdapter:      dbAdapter,
 		logger:         logger.WithField("usecase", "sync_delegations"),
 		maxWorkers:     2,
@@ -70,7 +71,7 @@ func (uc *syncDelegations) syncHistoricalDelegations(ctx context.Context) error 
 		default:
 		}
 
-		delegations, err := uc.tzktApiAdapter.FetchDelegations(ctx, uc.batchSize, offset)
+		delegations, err := uc.tzktApiAdapter.FetchDelegations(ctx, uc.batchSizeAPI, offset)
 		if err != nil {
 			return fmt.Errorf("error fetching historical delegations (offset %d): %w", offset, err)
 		}
@@ -124,8 +125,8 @@ func (uc *syncDelegations) syncHistoricalDelegations(ctx context.Context) error 
 		}
 
 		if len(modelDelegations) > 0 {
-			if err := uc.dbAdapter.SaveDelegations(ctx, modelDelegations); err != nil {
-				return fmt.Errorf("error saving delegations batch (offset %d): %w", offset, err)
+			if err := uc.saveDelegations(ctx, modelDelegations, offset); err != nil {
+				return err
 			}
 			totalProcessed += len(modelDelegations)
 		}
@@ -134,7 +135,7 @@ func (uc *syncDelegations) syncHistoricalDelegations(ctx context.Context) error 
 			uc.logger.Infof("Synced %d historical delegations up to level %d\n", totalProcessed, lastSavedLevel)
 		}
 
-		offset += uc.batchSize
+		offset += uc.batchSizeAPI
 
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -145,34 +146,56 @@ func (uc *syncDelegations) syncHistoricalDelegations(ctx context.Context) error 
 
 // saveAccountsBatch saves a batch of accounts to the database.
 func (uc *syncDelegations) saveAccountsBatch(ctx context.Context, modelAccounts map[string]*model.Account, offset int) error {
-	sem := make(chan struct{}, uc.maxWorkers)
-	errCh := make(chan error, len(modelAccounts))
-
-	var wg sync.WaitGroup
-
+	accounts := make([]model.Account, 0, len(modelAccounts))
 	for _, account := range modelAccounts {
-		wg.Add(1)
-		go func(acc *model.Account) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			if err := uc.dbAdapter.SaveAccount(ctx, *acc); err != nil {
-				select {
-				case errCh <- fmt.Errorf("error saving account %s (offset %d): %w", acc.Address, offset, err):
-				default:
-					uc.logger.WithError(err).Errorf("Failed to save account %s", acc.Address)
-				}
-			}
-		}(account)
+		accounts = append(accounts, *account)
 	}
 
-	wg.Wait()
-	close(errCh)
+	for i := 0; i < len(accounts); i += uc.batchSizeDB {
+		end := i + uc.batchSizeDB
+		if end > len(accounts) {
+			end = len(accounts)
+		}
 
-	if err := <-errCh; err != nil {
-		return err
+		batch := accounts[i:end]
+		if err := uc.dbAdapter.SaveAccounts(ctx, batch); err != nil {
+			return fmt.Errorf("error saving accounts batch (offset %d, batch %d-%d): %w",
+				offset, i, end-1, err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
 	}
+
+	uc.logger.Infof("Successfully saved %d accounts (offset %d)", len(accounts), offset)
+	return nil
+}
+
+// saveDelegations saves a batch of delegations to the database.
+func (uc *syncDelegations) saveDelegations(ctx context.Context, delegations []*model.Delegation, offset int) error {
+	for i := 0; i < len(delegations); i += uc.batchSizeDB {
+		end := i + uc.batchSizeDB
+		if end > len(delegations) {
+			end = len(delegations)
+		}
+
+		batch := delegations[i:end]
+		if err := uc.dbAdapter.SaveDelegations(ctx, batch); err != nil {
+			return fmt.Errorf("error saving delegations batch (offset %d, batch %d-%d): %w",
+				offset, i, end-1, err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+
+	uc.logger.Infof("Successfully saved %d delegations (offset %d)", len(delegations), offset)
 	return nil
 }
 

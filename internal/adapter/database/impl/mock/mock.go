@@ -69,6 +69,12 @@ func (m *Mock) SaveAccount(ctx context.Context, account model.Account) error {
 	return args.Error(0)
 }
 
+// SaveAccounts saves multiple accounts to the repository.
+func (m *Mock) SaveAccounts(ctx context.Context, accounts []model.Account) error {
+	args := m.Called(ctx, accounts)
+	return args.Error(0)
+}
+
 // SaveDelegations saves multiple delegations to the repository.
 func (m *Mock) SaveDelegations(ctx context.Context, delegations []*model.Delegation) error {
 	args := m.Called(ctx, delegations)

@@ -265,6 +265,32 @@ func (p *psql) SaveAccount(ctx context.Context, accounts model.Account) error {
 	return err
 }
 
+// SaveAccounts saves multiple accounts to the database.
+func (p *psql) SaveAccounts(ctx context.Context, accounts []model.Account) error {
+	tx, err := p.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	query := `
+		INSERT INTO ` + p.tableAccounts + ` (address, alias, type)
+		VALUES ($1, $2, $3)
+		ON CONFLICT DO NOTHING
+	`
+
+	for _, account := range accounts {
+		_, err := tx.ExecContext(ctx, query, account.Address, account.Alias, account.Type)
+		if err != nil {
+			if errRollBack := tx.Rollback(); errRollBack != nil {
+				return errors.New("query execution error: " + err.Error() + ", rollback error: " + errRollBack.Error())
+			}
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 // SaveDelegations saves multiple delegations to the database.
 func (p *psql) SaveDelegations(ctx context.Context, delegations []*model.Delegation) error {
 	tx, err := p.db.BeginTxx(ctx, nil)

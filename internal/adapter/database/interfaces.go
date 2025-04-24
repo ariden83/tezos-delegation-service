@@ -29,6 +29,9 @@ type Adapter interface {
 	// SaveAccount saves an account to the repository.
 	SaveAccount(ctx context.Context, account model.Account) error
 
+	// SaveAccounts saves multiple accounts to the repository.
+	SaveAccounts(ctx context.Context, account []model.Account) error
+
 	// SaveDelegation saves a delegation to the repository.
 	SaveDelegation(ctx context.Context, delegation *model.Delegation) error
 
