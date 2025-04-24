@@ -1,0 +1,397 @@
+openapi: 3.0.3
+info:
+  title: Tezos Delegation Service API
+  description: |
+    API to access Tezos delegation data.
+    This API exposes endpoints to retrieve historical delegation information.
+  version: 1.0.0
+  contact:
+    name: Tezos Delegation Service Team
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+paths:
+  /xtz/delegations:
+    get:
+      summary: Retrieve the list of delegations
+      description: Returns delegations with pagination and optional year filtering.
+      operationId: getDelegations
+      parameters:
+        - name: page
+          in: query
+          description: Page number (starts at 1)
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: year
+          in: query
+          description: Filter by year (e.g. 2022)
+          required: false
+          schema:
+            type: integer
+        - name: If-None-Match
+          in: header
+          description: Support for conditional requests with ETag
+          required: false
+          schema:
+            type: string
+        - name: X-Max-Delegation-ID
+          in: header
+          description: Maximum delegation ID for filtering
+          required: false
+          schema:
+            type: string
+        - name: X-Request-ID
+          in: header
+          description: Request identifier for tracing
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of delegations with pagination information
+          headers:
+            Cache-Control:
+              description: |
+                Cache directives for browsers and CDNs.
+                For requests with a specific year filter, uses "public, max-age=3600" (1 hour).
+                For general requests, uses "public, max-age=300" (5 minutes).
+              schema:
+                type: string
+                example: "public, max-age=300"
+            ETag:
+              description: Unique identifier for the current version of data
+              schema:
+                type: string
+                example: '"1502sdf"'
+            X-Page-Current:
+              description: Current page number
+              schema:
+                type: string
+            X-Page-Per-Page:
+              description: Number of items per page
+              schema:
+                type: string
+            X-Page-Total-Items:
+              description: Total number of items
+              schema:
+                type: string
+            X-Page-Total-Pages:
+              description: Total number of pages
+              schema:
+                type: string
+            X-Page-Prev:
+              description: Previous page number (if available)
+              schema:
+                type: string
+            X-Page-Next:
+              description: Next page number (if available)
+              schema:
+                type: string
+            X-Request-ID:
+              description: Unique identifier for this request
+              schema:
+                type: string
+            X-Max-Delegation-ID:
+              description: Maximum delegation ID in the current dataset
+              schema:
+                type: string
+                example: "12345"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DelegationResponse'
+        '304':
+          description: Data has not been modified (response to a conditional request)
+          headers:
+            Cache-Control:
+              description: Cache directives
+              schema:
+                type: string
+                example: "public, max-age=300"
+            ETag:
+              description: Unique identifier for the current version of data
+              schema:
+                type: string
+                example: '"1502sdf"'
+            X-Page-Current:
+              description: Current page number
+              schema:
+                type: string
+            X-Page-Per-Page:
+              description: Number of items per page
+              schema:
+                type: string
+            X-Page-Prev:
+              description: Previous page number (if available)
+              schema:
+                type: string
+            X-Page-Next:
+              description: Next page number (if available)
+              schema:
+                type: string
+            X-Request-ID:
+              description: Unique identifier for this request
+              schema:
+                type: string
+            X-Max-Delegation-ID:
+              description: Maximum delegation ID in the current dataset
+              schema:
+                type: string
+                example: "12345"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /health:
+    get:
+      summary: Check the general status of the service
+      description: Returns the general status of the service, including the database
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service status
+          headers:
+            Cache-Control:
+              description: Prevents caching of health data
+              schema:
+                type: string
+                example: "no-cache, no-store, must-revalidate"
+            Pragma:
+              description: HTTP/1.0 compatibility directive to avoid caching
+              schema:
+                type: string
+                example: "no-cache"
+            Expires:
+              description: Immediate expiration date
+              schema:
+                type: string
+                example: "0"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: Service status (ok, degraded)
+                    example: ok
+                  uptime:
+                    type: string
+                    description: Service runtime duration
+                    example: 24h30m15s
+                  database:
+                    type: string
+                    description: Database status (ok, error)
+                    example: ok
+                  ready:
+                    type: boolean
+                    description: Whether the service is ready to serve requests
+                    example: true
+                  shutdown:
+                    type: boolean
+                    description: Whether the service is shutting down
+                    example: false
+
+  /health/live:
+    get:
+      summary: Check if the service is alive
+      description: Used for Kubernetes liveness probe healthchecks
+      operationId: livenessCheck
+      responses:
+        '200':
+          description: The service is alive
+          headers:
+            Cache-Control:
+              description: Prevents caching of health data
+              schema:
+                type: string
+                example: "no-cache, no-store, must-revalidate"
+            Pragma:
+              description: HTTP/1.0 compatibility directive to avoid caching
+              schema:
+                type: string
+                example: "no-cache"
+            Expires:
+              description: Immediate expiration date
+              schema:
+                type: string
+                example: "0"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: Service alive status
+                    example: alive
+                  uptime:
+                    type: string
+                    description: Service runtime duration
+                    example: 24h30m15s
+                  started:
+                    type: string
+                    format: date-time
+                    description: Start date and time
+                    example: "2023-05-20T08:30:00Z"
+        '503':
+          description: The service is shutting down
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: Service status
+                    example: shutting_down
+                  message:
+                    type: string
+                    description: Message explaining the status
+                    example: Service is shutting down
+                  uptime:
+                    type: string
+                    description: Service runtime duration
+                    example: 24h30m15s
+  /health/ready:
+    get:
+      summary: Check if the service is ready to receive requests
+      description: Used for Kubernetes readiness probe healthchecks
+      operationId: readinessCheck
+      responses:
+        '200':
+          description: The service is ready
+          headers:
+            Cache-Control:
+              description: Prevents caching of health data
+              schema:
+                type: string
+                example: "no-cache, no-store, must-revalidate"
+            Pragma:
+              description: HTTP/1.0 compatibility directive to avoid caching
+              schema:
+                type: string
+                example: "no-cache"
+            Expires:
+              description: Immediate expiration date
+              schema:
+                type: string
+                example: "0"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: Readiness status
+                    example: ready
+        '503':
+          description: The service is not ready or has an issue
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: Service status
+                    example: not_ready
+                  message:
+                    type: string
+                    description: Message explaining the status
+                    example: Service is starting up
+components:
+  schemas:
+    Delegation:
+      type: object
+      properties:
+        delegator:
+          type: string
+          description: Delegator address
+          example: tz1a1SAaXRt9yoGMx29rh9FsBF4UzmvojdTL
+        delegate:
+          type: string
+          description: Delegate address
+          example: tz1eY5Aqa1kXDFoiebL28emyXFoneAoVg1zh
+        timestamp_unix:
+          type: integer
+          description: UNIX timestamp of the delegation
+          example: 1652345678
+        timestamp:
+          type: string
+          description: Formatted timestamp in RFC3339 format
+          example: "2022-05-12T12:34:38Z"
+        amount:
+          type: number
+          format: float
+          description: Delegation amount in mutez (millionth of a tez)
+          example: 100500000
+        level:
+          type: integer
+          description: Tezos block level
+          example: 2338084
+    PaginationInfo:
+      type: object
+      properties:
+        current_page:
+          type: integer
+          description: Current page number
+          example: 1
+        per_page:
+          type: integer
+          description: Number of items per page
+          example: 50
+        total_items:
+          type: integer
+          description: Total number of items
+          example: 1000
+        total_pages:
+          type: integer
+          description: Total number of pages
+          example: 20
+        has_prev_page:
+          type: boolean
+          description: Indicates if there is a previous page
+          example: false
+        has_next_page:
+          type: boolean
+          description: Indicates if there is a next page
+          example: true
+        prev_page:
+          type: integer
+          description: Previous page number (if available)
+          example: null
+        next_page:
+          type: integer
+          description: Next page number (if available)
+          example: 2
+    DelegationResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Delegation'
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: Internal server error

@@ -14,22 +14,7 @@ import (
 
 	"github.com/tezos-delegation-service/internal/adapter/database"
 	"github.com/tezos-delegation-service/internal/adapter/metrics"
-	"github.com/tezos-delegation-service/internal/usecase"
 )
-
-// handlers holds the HTTP handlers.
-type handlers struct {
-	getDelegationsHandler *GetDelegationsHandler
-	getOperationsHandler  *GetOperationsHandler
-	getRewardsHandler     *GetRewardsHandler
-}
-
-// usecases holds the use case functions.
-type usecases struct {
-	getDelegationsFunc usecase.GetDelegationsFunc
-	getOperationsFunc  usecase.GetOperationsFunc
-	getRewardsFunc     usecase.GetRewardsFunc
-}
 
 // Server represents the HTTP server.
 type Server struct {
@@ -38,26 +23,12 @@ type Server struct {
 	metrics       metrics.Adapter
 	port          uint16
 	router        *gin.Engine
-	handlers      *handlers
 }
 
 // NewServer creates a new HTTP server.
-func NewServer(port, defaultPaginationLimit uint16, dbAdapter database.Adapter, metricClient metrics.Adapter, logger *logrus.Entry) *Server {
-	u := &usecases{
-		getDelegationsFunc: usecase.NewGetDelegationsFunc(defaultPaginationLimit, dbAdapter, metricClient),
-		getOperationsFunc:  usecase.NewGetOperationsFunc(defaultPaginationLimit, dbAdapter, metricClient),
-		getRewardsFunc:     usecase.NewGetRewardsFunc(defaultPaginationLimit, dbAdapter, metricClient),
-	}
-
-	h := &handlers{
-		getDelegationsHandler: NewGetDelegationsHandler(defaultPaginationLimit, u.getDelegationsFunc),
-		getOperationsHandler:  NewGetOperationsHandler(defaultPaginationLimit, u.getOperationsFunc),
-		getRewardsHandler:     NewGetRewardsHandler(defaultPaginationLimit, u.getRewardsFunc),
-	}
-
+func NewServer(port uint16, dbAdapter database.Adapter, metricClient metrics.Adapter, logger *logrus.Entry) *Server {
 	return &Server{
 		healthService: NewHealthService(dbAdapter),
-		handlers:      h,
 		logger:        logger,
 		metrics:       metricClient,
 		port:          port,
@@ -86,13 +57,6 @@ func (s *Server) SetupRoutes() *Server {
 	s.router.Use(s.corsMiddleware())
 
 	s.router.Use(metrics.Middleware(s.metrics))
-
-	xtzGroup := s.router.Group("/xtz")
-	{
-		xtzGroup.GET("/delegations", s.handlers.getDelegationsHandler.GetDelegations)
-		xtzGroup.GET("/operations", s.handlers.getOperationsHandler.GetOperations)
-		xtzGroup.GET("/rewards", s.handlers.getRewardsHandler.GetRewards)
-	}
 
 	healthGroup := s.router.Group("/health")
 	{

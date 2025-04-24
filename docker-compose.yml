@@ -1,10 +1,12 @@
 services:
   app:
-    container_name: tezos-delegation-service-app
-    image: tezos-delegation-service-app
+    container_name: tezos-delegation-api
+    image: tezos-delegation-api
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - TARGET=api
     ports:
       - "8080:8080"
     depends_on:
@@ -22,7 +24,34 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: >
       "sleep 50 &&
-       ./tezos-delegation-service"
+       ./tezos-delegation-api"
+
+  job:
+    container_name: tezos-delegation-job
+    image: tezos-delegation-job
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - TARGET=job
+    ports:
+      - "8081:8080"
+    depends_on:
+      - sqitch
+    environment:
+      - TZ=UTC
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=tezos_delegations
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+    restart: on-failure
+    volumes:
+      - ./config:/app/config
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "sleep 50 &&
+       ./tezos-delegation-job"
 
   swagger-ui:
     image: swaggerapi/swagger-ui:latest

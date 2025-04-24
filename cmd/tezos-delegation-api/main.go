@@ -1,15 +1,12 @@
 package main
 
 import (
-	"context"
 	"log"
 
-	"github.com/tezos-delegation-service/cmd/tezos-delegation-service/api/http"
-	"github.com/tezos-delegation-service/cmd/tezos-delegation-service/config"
-	"github.com/tezos-delegation-service/cmd/tezos-delegation-service/job/poller"
+	"github.com/tezos-delegation-service/cmd/tezos-delegation-api/api/http"
+	"github.com/tezos-delegation-service/cmd/tezos-delegation-api/config"
 	databaseadapterfactory "github.com/tezos-delegation-service/internal/adapter/database/factory"
 	metricsfactory "github.com/tezos-delegation-service/internal/adapter/metrics/factory"
-	tzktapiadapterfactory "github.com/tezos-delegation-service/internal/adapter/tzktapi/factory"
 	"github.com/tezos-delegation-service/pkg/logger"
 )
 
@@ -20,7 +17,7 @@ func main() {
 	}
 
 	logger.Setup(&cfg.Logging)
-	l := logger.Log.WithField("component", "tezos-delegation-service")
+	l := logger.Log.WithField("component", "tezos-delegation-api")
 	l.Infof("Service configuration: %+v", cfg)
 
 	metricsClient, err := metricsfactory.New(cfg.Metrics)
@@ -38,22 +35,11 @@ func main() {
 		}
 	}()
 
-	tzktAPIAdapter, err := tzktapiadapterfactory.New(cfg.TZKTApiAdapter, metricsClient, l)
-	if err != nil {
-		l.Fatalf("Failed to create TzKT API factory: %v", err)
-	}
-
 	server := http.NewServer(cfg.Server.Port, cfg.Pagination.Limit, dbAdapter, metricsClient, l).SetupRoutes()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	pollerInstance := poller.New(tzktAPIAdapter, dbAdapter, cfg.TZKTApiAdapter.PollingInterval, metricsClient, l)
-	go pollerInstance.Run(ctx)
 
 	if err := server.Start(); err != nil {
 		l.Fatalf("Failed to start server: %v", err)
 	}
 
-	server.WaitForShutdown(cancel)
+	server.WaitForShutdown()
 }
