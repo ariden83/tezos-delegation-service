@@ -26,6 +26,9 @@ type Adapter interface {
 	// GetRewards returns rewards for a given wallet and baker within a date range.
 	GetRewards(ctx context.Context, fromDate, toDate int64, wallet, baker model.WalletAddress) ([]model.Reward, error)
 
+	// SaveAccount saves an account to the repository.
+	SaveAccount(ctx context.Context, account model.Account) error
+
 	// SaveDelegation saves a delegation to the repository.
 	SaveDelegation(ctx context.Context, delegation *model.Delegation) error
 

@@ -25,6 +25,7 @@ type Config struct {
 	TableDelegations string `mapstructure:"table_delegations"`
 	TableOperations  string `mapstructure:"table_operations"`
 	TableRewards     string `mapstructure:"table_rewards"`
+	TableAccounts    string `mapstructure:"table_accounts"`
 }
 
 type text interface {
@@ -57,6 +58,7 @@ type psql struct {
 	tableDelegations string
 	tableOperations  string
 	tableRewards     string
+	tableAccounts    string
 }
 
 // New creates a new SQL delegation repository.
@@ -249,6 +251,17 @@ func (p *psql) SaveDelegation(ctx context.Context, delegation *model.Delegation)
 		ON CONFLICT DO NOTHING
 	`
 	_, err := p.db.ExecContext(ctx, query, delegation.Delegator, delegation.Delegate, delegation.Timestamp, delegation.Amount, delegation.Level)
+	return err
+}
+
+// SaveAccount saves a single account to the database.
+func (p *psql) SaveAccount(ctx context.Context, accounts model.Account) error {
+	query := `
+		INSERT INTO ` + p.tableAccounts + ` (address, alias, type)
+		VALUES ($1, $2, $3)
+		ON CONFLICT DO NOTHING
+	`
+	_, err := p.db.ExecContext(ctx, query, accounts.Address, accounts.Alias, accounts.Type)
 	return err
 }
 

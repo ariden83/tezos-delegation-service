@@ -22,6 +22,7 @@ database:
     table_delegations: "app.delegations"
     table_operations: "app.operations"
     table_rewards: "app.rewards"
+    table_accounts: "app.accounts"
 
 metrics:
   impl: prometheus

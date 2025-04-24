@@ -119,6 +119,19 @@ func (w *TelemetryWrapper) SaveDelegation(ctx context.Context, delegation *model
 	return err
 }
 
+// SaveAccount saves a single account and records metrics.
+func (w *TelemetryWrapper) SaveAccount(ctx context.Context, account model.Account) error {
+	startTime := time.Now()
+	err := w.db.SaveAccount(ctx, account)
+	duration := time.Since(startTime)
+
+	if w.metrics != nil {
+		w.metrics.RecordRepositoryOperation("SaveAccount", w.implType, duration, err)
+	}
+
+	return err
+}
+
 // SaveDelegations saves multiple delegations and records metrics.
 func (w *TelemetryWrapper) SaveDelegations(ctx context.Context, delegations []*model.Delegation) error {
 	startTime := time.Now()

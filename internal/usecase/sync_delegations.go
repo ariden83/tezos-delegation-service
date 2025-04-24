@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -19,6 +20,7 @@ type syncDelegations struct {
 	dbAdapter      database.Adapter
 	logger         *logrus.Entry
 	tzktApiAdapter tzktapi.Adapter
+	maxWorkers     int
 }
 
 // NewSyncDelegationsFunc creates a new instance of syncDelegations.
@@ -27,6 +29,7 @@ func NewSyncDelegationsFunc(tzktAdapter tzktapi.Adapter, dbAdapter database.Adap
 		batchSize:      1000,
 		dbAdapter:      dbAdapter,
 		logger:         logger.WithField("usecase", "sync_delegations"),
+		maxWorkers:     2,
 		tzktApiAdapter: tzktAdapter,
 	}
 	return uc.withMonitorer(uc.SyncDelegations, metricsClient)
@@ -115,8 +118,8 @@ func (uc *syncDelegations) syncHistoricalDelegations(ctx context.Context) error 
 		}
 
 		if len(modelAccounts) > 0 {
-			if err := uc.dbAdapter.SaveAccounts(ctx, modelAccounts); err != nil {
-				return fmt.Errorf("error saving accounts batch (offset %d): %w", offset, err)
+			if err := uc.saveAccountsBatch(ctx, modelAccounts, offset); err != nil {
+				return err
 			}
 		}
 
@@ -137,6 +140,39 @@ func (uc *syncDelegations) syncHistoricalDelegations(ctx context.Context) error 
 	}
 
 	uc.logger.Infof("Historical sync completed. Total delegations: %d\n", totalProcessed)
+	return nil
+}
+
+// saveAccountsBatch saves a batch of accounts to the database.
+func (uc *syncDelegations) saveAccountsBatch(ctx context.Context, modelAccounts map[string]*model.Account, offset int) error {
+	sem := make(chan struct{}, uc.maxWorkers)
+	errCh := make(chan error, len(modelAccounts))
+
+	var wg sync.WaitGroup
+
+	for _, account := range modelAccounts {
+		wg.Add(1)
+		go func(acc *model.Account) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			if err := uc.dbAdapter.SaveAccount(ctx, *acc); err != nil {
+				select {
+				case errCh <- fmt.Errorf("error saving account %s (offset %d): %w", acc.Address, offset, err):
+				default:
+					uc.logger.WithError(err).Errorf("Failed to save account %s", acc.Address)
+				}
+			}
+		}(account)
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	if err := <-errCh; err != nil {
+		return err
+	}
 	return nil
 }
 
