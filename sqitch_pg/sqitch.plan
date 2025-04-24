@@ -8,3 +8,4 @@
 04_staking_operations [03_delegations] 2025-04-23T04:02:00Z Ariden <adrienparrochia@gmail.com> # Create staking operations table
 05_rewards [04_staking_operations] 2025-04-23T04:03:00Z Ariden <adrienparrochia@gmail.com> # Create rewards table
 06_staking_pools [05_rewards] 2025-04-23T04:04:00Z Ariden <adrienparrochia@gmail.com> # Create staking pools table
+07_sync_state [06_staking_pools] 2025-04-23T04:05:00Z Ariden <adrienparrochia@gmail.com> # Create sync state table
