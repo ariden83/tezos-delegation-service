@@ -316,6 +316,16 @@ For Docker/Kubernetes deployments using PostgreSQL, we provide separate Sqitch c
 
 Contributions, issues, and suggestions are welcome! Feel free to open a PR or start a discussion.
 
+## Documentation
+
+### External API Reference
+
+This service leverages the TzKT API to retrieve data related to Tezos delegations. For more information about the TzKT API and its capabilities:
+
+- Official TzKT API documentation: [https://api.tzkt.io/](https://api.tzkt.io/)
+- Explore available endpoints: [https://api.tzkt.io/v1/swagger/index.html](https://api.tzkt.io/v1/swagger/index.html)
+
+The TzKT API documentation can be helpful in understanding the underlying data structures and the information available through the Tezos indexer.
 
 ## Why this project?
 
