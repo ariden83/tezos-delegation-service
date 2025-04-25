@@ -46,7 +46,7 @@ func New(cfg Config, logger *logrus.Entry) (tzktapi.Adapter, error) {
 }
 
 // FetchDelegations fetches delegations from the TzKT API
-func (a *Adapter) FetchDelegations(ctx context.Context, limit, offset int) (model.TzktDelegationResponse, error) {
+func (a *Adapter) FetchDelegations(ctx context.Context, limit uint16, offset int) (model.TzktDelegationResponse, error) {
 	url := fmt.Sprintf("%s/v1/operations/delegations?limit=%d&offset=%d", a.apiURL, limit, offset)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -76,8 +76,14 @@ func (a *Adapter) FetchDelegations(ctx context.Context, limit, offset int) (mode
 }
 
 // FetchDelegationsFromLevel fetches delegations from a specific level
-func (a *Adapter) FetchDelegationsFromLevel(ctx context.Context, level uint64) (model.TzktDelegationResponse, error) {
+func (a *Adapter) FetchDelegationsFromLevel(ctx context.Context, level uint64, limit uint8) (model.TzktDelegationResponse, error) {
 	url := fmt.Sprintf("%s/v1/operations/delegations?level.gt=%d", a.apiURL, level)
+
+	// Ajouter une limite si spécifiée
+	if limit > 0 {
+		url += fmt.Sprintf("&limit=%d", limit)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
@@ -89,7 +95,7 @@ func (a *Adapter) FetchDelegationsFromLevel(ctx context.Context, level uint64) (
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			fmt.Printf("error closing response body: %v\n", err)
+			a.logger.Errorf("error closing response body: %v", err) // Utilisation du logger au lieu de fmt
 		}
 	}()
 
@@ -236,8 +242,8 @@ func (a *Adapter) fetchDelegationOperations(ctx context.Context, filter tzktapi.
 		ops = append(ops, model.StakingOperation{
 			Hash:      d.Hash,
 			Type:      "delegation",
-			Wallet:    d.Sender.Address,
-			Baker:     d.NewDelegate.Address,
+			Wallet:    model.WalletAddress(d.Sender.Address),
+			Baker:     model.WalletAddress(d.NewDelegate.Address),
 			Timestamp: d.Timestamp,
 			Status:    d.Status,
 		})
@@ -306,8 +312,8 @@ func (a *Adapter) fetchTransactionOperations(ctx context.Context, filter tzktapi
 			Hash:       t.Hash,
 			Type:       model.OperationType(t.Entrypoint),
 			Entrypoint: t.Entrypoint,
-			Wallet:     t.Sender.Address,
-			Baker:      t.Target.Address,
+			Wallet:     model.WalletAddress(t.Sender.Address),
+			Baker:      model.WalletAddress(t.Target.Address),
 			Amount:     t.Amount / 1_000_000, // µꜩ → ꜩ
 			Timestamp:  t.Timestamp,
 			Status:     t.Status,

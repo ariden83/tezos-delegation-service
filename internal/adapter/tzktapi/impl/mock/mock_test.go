@@ -55,7 +55,7 @@ var stubTZKTDelegationResponse = model.TzktDelegationResponse{
 func Test_Mock_FetchDelegations(t *testing.T) {
 	type args struct {
 		ctx    context.Context
-		limit  int
+		limit  uint16
 		offset int
 	}
 	tests := []struct {
@@ -133,6 +133,7 @@ func Test_Mock_FetchDelegationsFromLevel(t *testing.T) {
 	type args struct {
 		ctx   context.Context
 		level uint64
+		limit uint8
 	}
 	tests := []struct {
 		name    string
@@ -152,6 +153,7 @@ func Test_Mock_FetchDelegationsFromLevel(t *testing.T) {
 			args: args{
 				ctx:   context.TODO(),
 				level: 100,
+				limit: 100,
 			},
 			want:    stubTZKTDelegationResponse,
 			wantErr: false,
@@ -167,6 +169,7 @@ func Test_Mock_FetchDelegationsFromLevel(t *testing.T) {
 			args: args{
 				ctx:   context.TODO(),
 				level: 100,
+				limit: 100,
 			},
 			want:    model.TzktDelegationResponse{},
 			wantErr: true,
@@ -182,6 +185,7 @@ func Test_Mock_FetchDelegationsFromLevel(t *testing.T) {
 			args: args{
 				ctx:   context.TODO(),
 				level: 100,
+				limit: 100,
 			},
 			want:    model.TzktDelegationResponse{},
 			wantErr: true,
@@ -190,7 +194,7 @@ func Test_Mock_FetchDelegationsFromLevel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := tt.mock
-			got, err := m.FetchDelegationsFromLevel(tt.args.ctx, tt.args.level)
+			got, err := m.FetchDelegationsFromLevel(tt.args.ctx, tt.args.level, tt.args.limit)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("FetchDelegationsFromLevel() error = %v, wantErr %v", err, tt.wantErr)
 				return

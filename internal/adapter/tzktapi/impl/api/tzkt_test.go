@@ -38,7 +38,7 @@ func Test_Adapter_FetchDelegations(t *testing.T) {
 	}
 	type args struct {
 		ctx    context.Context
-		limit  int
+		limit  uint16
 		offset int
 	}
 	tests := []struct {
@@ -139,6 +139,7 @@ func Test_Adapter_FetchDelegationsFromLevel(t *testing.T) {
 	type args struct {
 		ctx   context.Context
 		level uint64
+		limit uint8
 	}
 	tests := []struct {
 		name    string
@@ -163,6 +164,7 @@ func Test_Adapter_FetchDelegationsFromLevel(t *testing.T) {
 			args: args{
 				ctx:   context.Background(),
 				level: 1000,
+				limit: 100,
 			},
 			want: model.TzktDelegationResponse{{
 				Level: 1001,
@@ -180,6 +182,7 @@ func Test_Adapter_FetchDelegationsFromLevel(t *testing.T) {
 			args: args{
 				ctx:   context.Background(),
 				level: 1000,
+				limit: 100,
 			},
 			want:    nil,
 			wantErr: true,
@@ -199,6 +202,7 @@ func Test_Adapter_FetchDelegationsFromLevel(t *testing.T) {
 					return ctx
 				}(),
 				level: 1000,
+				limit: 100,
 			},
 			want:    nil,
 			wantErr: true,
@@ -212,7 +216,7 @@ func Test_Adapter_FetchDelegationsFromLevel(t *testing.T) {
 				db:     tt.fields.db,
 				logger: tt.fields.logger,
 			}
-			got, err := a.FetchDelegationsFromLevel(tt.args.ctx, tt.args.level)
+			got, err := a.FetchDelegationsFromLevel(tt.args.ctx, tt.args.level, tt.args.limit)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("FetchDelegationsFromLevel() error = %v, wantErr %v", err, tt.wantErr)
 				return

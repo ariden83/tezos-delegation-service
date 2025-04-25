@@ -19,13 +19,13 @@ func New() *Mock {
 }
 
 // FetchDelegations fetches delegations from the TzKT API.
-func (m *Mock) FetchDelegations(ctx context.Context, limit, offset int) (model.TzktDelegationResponse, error) {
+func (m *Mock) FetchDelegations(ctx context.Context, limit uint16, offset int) (model.TzktDelegationResponse, error) {
 	args := m.Called(ctx, limit, offset)
 	return args.Get(0).(model.TzktDelegationResponse), args.Error(1)
 }
 
 // FetchDelegationsFromLevel fetches delegations from a specific level.
-func (m *Mock) FetchDelegationsFromLevel(ctx context.Context, level uint64) (model.TzktDelegationResponse, error) {
+func (m *Mock) FetchDelegationsFromLevel(ctx context.Context, level uint64, limit uint8) (model.TzktDelegationResponse, error) {
 	args := m.Called(ctx, level)
 	return args.Get(0).(model.TzktDelegationResponse), args.Error(1)
 }

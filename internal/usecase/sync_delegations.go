@@ -15,23 +15,27 @@ import (
 
 // syncDelegations handles business logic for syncing delegations.
 type syncDelegations struct {
-	batchSizeAPI   int
-	batchSizeDB    int
-	dbAdapter      database.Adapter
-	logger         *logrus.Entry
-	tzktApiAdapter tzktapi.Adapter
-	maxWorkers     int
+	batchSizeDB             int
+	batchSizeAPIHistoric    uint16
+	batchSizeAPIIncremental uint8
+	dbAdapter               database.Adapter
+	logger                  *logrus.Entry
+	tzktApiAdapter          tzktapi.Adapter
+	maxWorkers              int
+	isHistoricalSyncDone    bool
 }
 
 // NewSyncDelegationsFunc creates a new instance of syncDelegations.
 func NewSyncDelegationsFunc(tzktAdapter tzktapi.Adapter, dbAdapter database.Adapter, metricsClient metrics.Adapter, logger *logrus.Entry) model.SyncFunc {
 	uc := &syncDelegations{
-		batchSizeAPI:   1000,
-		batchSizeDB:    100,
-		dbAdapter:      dbAdapter,
-		logger:         logger.WithField("usecase", "sync_delegations"),
-		maxWorkers:     2,
-		tzktApiAdapter: tzktAdapter,
+		batchSizeDB:             100,
+		batchSizeAPIHistoric:    1000,
+		batchSizeAPIIncremental: 150,
+		dbAdapter:               dbAdapter,
+		logger:                  logger.WithField("usecase", "sync_delegations"),
+		maxWorkers:              2,
+		tzktApiAdapter:          tzktAdapter,
+		isHistoricalSyncDone:    false,
 	}
 	return uc.withMonitorer(uc.SyncDelegations, metricsClient)
 }
@@ -50,7 +54,12 @@ func (uc *syncDelegations) SyncDelegations(ctx context.Context) error {
 	}
 
 	if highestLevel == 0 {
-		// If no delegations exist, do a full historical sync (from beginning of Tezos in 2018)
+		uc.isHistoricalSyncDone = false
+		uc.logger.Info("Resetting historical sync flag because database appears empty")
+	}
+
+	if highestLevel == 0 || !uc.isHistoricalSyncDone {
+		// Si aucune délégation n'existe ou si la synchronisation historique n'est pas terminée
 		return uc.syncHistoricalDelegations(ctx)
 	}
 
@@ -71,8 +80,12 @@ func (uc *syncDelegations) syncHistoricalDelegations(ctx context.Context) error 
 		default:
 		}
 
-		delegations, err := uc.tzktApiAdapter.FetchDelegations(ctx, uc.batchSizeAPI, offset)
+		delegations, err := uc.tzktApiAdapter.FetchDelegations(ctx, uc.batchSizeAPIHistoric, offset)
 		if err != nil {
+			if err.Error() == "EOF" {
+				uc.logger.Info("Reached end of delegations data")
+				break
+			}
 			return fmt.Errorf("error fetching historical delegations (offset %d): %w", offset, err)
 		}
 
@@ -80,71 +93,114 @@ func (uc *syncDelegations) syncHistoricalDelegations(ctx context.Context) error 
 			break
 		}
 
-		modelDelegations := make([]*model.Delegation, 0, len(delegations))
-		modelAccounts := map[string]*model.Account{}
 		for _, d := range delegations {
-			if d.Status != "applied" {
-				continue
-			}
-
-			modelDelegation := &model.Delegation{
-				Delegator: model.WalletAddress(d.Sender.Address),
-				Delegate:  model.WalletAddress(d.Delegate.Address),
-				Amount:    float64(d.Amount) / 1000000.0, // Convert mutez to tez
-				Timestamp: d.Timestamp.Unix(),
-				Level:     d.Level,
-			}
-
-			modelDelegations = append(modelDelegations, modelDelegation)
-
-			if _, exists := modelAccounts[d.Sender.Address]; !exists {
-				modelAccounts[d.Sender.Address] = &model.Account{
-					Address: model.WalletAddress(d.Sender.Address),
-					Alias:   d.Sender.Alias,
-					Type:    model.AccountTypeUser,
-				}
-			}
-
-			if _, exists := modelAccounts[d.Delegate.Address]; !exists {
-				modelAccounts[d.Delegate.Address] = &model.Account{
-					Address: model.WalletAddress(d.Delegate.Address),
-					Alias:   d.Delegate.Alias,
-					Type:    model.AccountTypeDelegate,
-				}
-			}
-
 			if d.Level > lastSavedLevel {
 				lastSavedLevel = d.Level
 			}
 		}
 
-		if len(modelAccounts) > 0 {
-			if err := uc.saveAccountsBatch(ctx, modelAccounts, offset); err != nil {
-				return err
-			}
-
-			if err := uc.saveStakingPoolsBatch(ctx, modelAccounts, offset); err != nil {
-				return err
-			}
+		if err := uc.processDelegations(ctx, delegations, offset); err != nil {
+			return err
 		}
 
-		if len(modelDelegations) > 0 {
-			if err := uc.saveDelegations(ctx, modelDelegations, offset); err != nil {
-				return err
-			}
-			totalProcessed += len(modelDelegations)
-		}
+		totalProcessed += len(delegations)
 
 		if offset%10000 == 0 {
 			uc.logger.Infof("Synced %d historical delegations up to level %d\n", totalProcessed, lastSavedLevel)
 		}
 
-		offset += uc.batchSizeAPI
+		offset += int(uc.batchSizeAPIHistoric)
 
 		time.Sleep(100 * time.Millisecond)
 	}
 
 	uc.logger.Infof("Historical sync completed. Total delegations: %d\n", totalProcessed)
+	uc.isHistoricalSyncDone = true
+	return nil
+}
+
+// processDelegations processes and saves delegations to the database.
+func (uc *syncDelegations) processDelegations(ctx context.Context, delegations model.TzktDelegationResponse, offset int) error {
+	modelDelegations := make([]*model.Delegation, 0, len(delegations))
+	modelAccounts := map[string]*model.Account{}
+
+	for _, d := range delegations {
+		if d.Status != "applied" {
+			continue
+		}
+
+		if _, exists := modelAccounts[d.Sender.Address]; !exists {
+			modelAccounts[d.Sender.Address] = &model.Account{
+				Address: model.WalletAddress(d.Sender.Address),
+				Alias:   d.Sender.Alias,
+				Type:    model.AccountTypeUser,
+			}
+		}
+
+		if _, exists := modelAccounts[d.Delegate.Address]; !exists {
+			modelAccounts[d.Delegate.Address] = &model.Account{
+				Address: model.WalletAddress(d.Delegate.Address),
+				Alias:   d.Delegate.Alias,
+				Type:    model.AccountTypeDelegate,
+			}
+		}
+
+		modelDelegation := &model.Delegation{
+			Delegator: model.WalletAddress(d.Sender.Address),
+			Delegate:  model.WalletAddress(d.Delegate.Address),
+			Amount:    float64(d.Amount) / 1000000.0, // Convert mutez to tez
+			Timestamp: d.Timestamp.Unix(),
+			Level:     d.Level,
+		}
+
+		modelDelegations = append(modelDelegations, modelDelegation)
+	}
+
+	if len(modelAccounts) > 0 {
+		if err := uc.saveAccountsBatch(ctx, modelAccounts, offset); err != nil {
+			uc.logger.Warnf("Error saving accounts: %v", err)
+		}
+
+		if err := uc.saveStakingPoolsBatch(ctx, modelAccounts, offset); err != nil {
+			uc.logger.Warnf("Error saving staking pools: %v", err)
+		}
+	}
+
+	if len(modelDelegations) > 0 {
+		if err := uc.saveDelegations(ctx, modelDelegations, offset); err != nil {
+			return fmt.Errorf("error saving delegations: %w", err)
+		}
+		uc.logger.Infof("Synced %d new delegations (offset: %d)\n", len(modelDelegations), offset)
+
+	} else {
+		uc.logger.Info("No new delegations to sync")
+	}
+
+	return nil
+}
+
+// syncIncrementalDelegations syncs delegations from a specific block level
+func (uc *syncDelegations) syncIncrementalDelegations(ctx context.Context, level uint64) error {
+	uc.logger.Infof("Syncing incremental delegations from level %d\n", level)
+
+	delegations, err := uc.tzktApiAdapter.FetchDelegationsFromLevel(ctx, level, uc.batchSizeAPIIncremental)
+	if err != nil {
+		if err.Error() == "EOF" {
+			uc.logger.Info("Reached end of delegations data")
+			return nil
+		}
+		return fmt.Errorf("error fetching delegations from level %d: %w", level, err)
+	}
+
+	if err := uc.processDelegations(ctx, delegations, 0); err != nil {
+		return err
+	}
+
+	if len(delegations) >= int(uc.batchSizeAPIIncremental) {
+		uc.logger.Warnf("Large number of delegations (%d) detected. Switching to historical sync mode for subsequent data", len(delegations))
+		uc.isHistoricalSyncDone = false
+	}
+
 	return nil
 }
 
@@ -237,44 +293,6 @@ func (uc *syncDelegations) saveDelegations(ctx context.Context, delegations []*m
 	}
 
 	uc.logger.Infof("Successfully saved %d delegations (offset %d)", len(delegations), offset)
-	return nil
-}
-
-// syncIncrementalDelegations syncs delegations from a specific block level
-func (uc *syncDelegations) syncIncrementalDelegations(ctx context.Context, level uint64) error {
-	uc.logger.Infof("Syncing incremental delegations from level %d\n", level)
-
-	delegations, err := uc.tzktApiAdapter.FetchDelegationsFromLevel(ctx, level)
-	if err != nil {
-		return fmt.Errorf("error fetching delegations from level %d: %w", level, err)
-	}
-
-	modelDelegations := make([]*model.Delegation, 0, len(delegations))
-	for _, d := range delegations {
-		if d.Status != "applied" {
-			continue
-		}
-
-		modelDelegation := &model.Delegation{
-			Delegator: model.WalletAddress(d.Sender.Address),
-			Delegate:  model.WalletAddress(d.Delegate.Address),
-			Amount:    float64(d.Amount) / 1000000.0, // Convert mutez to tez
-			Timestamp: d.Timestamp.Unix(),
-			Level:     d.Level,
-		}
-
-		modelDelegations = append(modelDelegations, modelDelegation)
-	}
-
-	if len(modelDelegations) > 0 {
-		if err := uc.dbAdapter.SaveDelegations(ctx, modelDelegations); err != nil {
-			return fmt.Errorf("error saving delegations: %w", err)
-		}
-		uc.logger.Infof("Synced %d new delegations\n", len(modelDelegations))
-	} else {
-		uc.logger.Info("No new delegations to sync")
-	}
-
 	return nil
 }
 

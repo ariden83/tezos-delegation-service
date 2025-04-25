@@ -9,14 +9,14 @@ import (
 	"github.com/tezos-delegation-service/internal/model"
 )
 
-// TelemetryWrapper wraps a TzKT API adapter with telemetry
+// TelemetryWrapper wraps a TzKT API adapter with telemetry.
 type TelemetryWrapper struct {
 	adapter  tzktapi.Adapter
 	implType string
 	metrics  metrics.Adapter
 }
 
-// New creates a new telemetry wrapper for a TzKT API adapter
+// New creates a new telemetry wrapper for a TzKT API adapter.
 func New(adapter tzktapi.Adapter, implType string, metricsClient metrics.Adapter) tzktapi.Adapter {
 	return &TelemetryWrapper{
 		adapter:  adapter,
@@ -25,8 +25,8 @@ func New(adapter tzktapi.Adapter, implType string, metricsClient metrics.Adapter
 	}
 }
 
-// FetchDelegations fetches delegations with telemetry
-func (w *TelemetryWrapper) FetchDelegations(ctx context.Context, limit, offset int) (model.TzktDelegationResponse, error) {
+// FetchDelegations fetches delegations with telemetry.
+func (w *TelemetryWrapper) FetchDelegations(ctx context.Context, limit uint16, offset int) (model.TzktDelegationResponse, error) {
 	startTime := time.Now()
 	endpoint := "delegations"
 
@@ -39,12 +39,12 @@ func (w *TelemetryWrapper) FetchDelegations(ctx context.Context, limit, offset i
 	return result, err
 }
 
-// FetchDelegationsFromLevel fetches delegations from a level with telemetry
-func (w *TelemetryWrapper) FetchDelegationsFromLevel(ctx context.Context, level uint64) (model.TzktDelegationResponse, error) {
+// FetchDelegationsFromLevel fetches delegations from a level with telemetry.
+func (w *TelemetryWrapper) FetchDelegationsFromLevel(ctx context.Context, level uint64, limit uint8) (model.TzktDelegationResponse, error) {
 	startTime := time.Now()
 	endpoint := "delegations_from_level"
 
-	result, err := w.adapter.FetchDelegationsFromLevel(ctx, level)
+	result, err := w.adapter.FetchDelegationsFromLevel(ctx, level, limit)
 
 	if w.metrics != nil {
 		w.metrics.RecordTZKTAPIRequest(endpoint, time.Since(startTime), err == nil)
