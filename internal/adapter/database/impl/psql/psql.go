@@ -166,7 +166,47 @@ func (p *psql) GetOperations(ctx context.Context, fromDate, toDate int64, page, 
 
 // GetRewards returns rewards for a given wallet and baker within a date range.
 func (p *psql) GetRewards(ctx context.Context, fromDate, toDate int64, wallet, baker model.WalletAddress) ([]model.Reward, error) {
-	return nil, nil
+	var rewards []model.Reward
+	
+	var (
+		query       string
+		args        []interface{}
+		whereClause string
+		argIndex    = 1
+	)
+	
+	// Build where clause for date range
+	whereClause = "WHERE timestamp >= $" + strconv.Itoa(argIndex) + " AND timestamp <= $" + strconv.Itoa(argIndex+1)
+	args = append(args, fromDate, toDate)
+	argIndex += 2
+	
+	// Add wallet filter if provided
+	if wallet != "" {
+		whereClause += " AND recipient_address = $" + strconv.Itoa(argIndex)
+		args = append(args, wallet.String())
+		argIndex++
+	}
+	
+	// Add baker filter if provided
+	if baker != "" {
+		whereClause += " AND source_address = $" + strconv.Itoa(argIndex)
+		args = append(args, baker.String())
+		argIndex++
+	}
+	
+	query = `
+		SELECT id, recipient_address, source_address, cycle, amount, timestamp
+		FROM ` + p.tableRewards + `
+		` + whereClause + `
+		ORDER BY timestamp DESC
+	`
+	
+	err := p.db.SelectContext(ctx, &rewards, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	
+	return rewards, nil
 }
 
 // GetLatestDelegation returns the latest delegation from the database.
@@ -330,7 +370,7 @@ func (p *psql) SaveStakingPools(ctx context.Context, stakingPools []model.Stakin
 
 	query := `
 		INSERT INTO ` + p.tableStakingPool + ` (address, name, staking_token)
-		VALUES ($1, $2, $3, $4, $5)
+		VALUES ($1, $2, $3)
 		ON CONFLICT DO NOTHING
 	`
 
@@ -345,6 +385,101 @@ func (p *psql) SaveStakingPools(ctx context.Context, stakingPools []model.Stakin
 	}
 
 	return tx.Commit()
+}
+
+// GetLastSyncedRewardCycle returns the last synced reward cycle.
+func (p *psql) GetLastSyncedRewardCycle(ctx context.Context) (int, error) {
+	var cycle int
+	query := `
+		SELECT COALESCE(last_synced_level, 0) AS cycle
+		FROM app.sync_state
+		WHERE source = 'rewards'
+		LIMIT 1
+	`
+	err := p.db.GetContext(ctx, &cycle, query)
+	if err != nil {
+		return 0, err
+	}
+	return cycle, nil
+}
+
+// GetActiveDelegators returns a list of active delegators.
+func (p *psql) GetActiveDelegators(ctx context.Context) ([]model.WalletAddress, error) {
+	var delegators []model.WalletAddress
+	query := `
+		SELECT DISTINCT delegator AS address
+		FROM ` + p.tableDelegations + `
+		WHERE amount > 0
+		ORDER BY delegator
+	`
+	err := p.db.SelectContext(ctx, &delegators, query)
+	if err != nil {
+		return nil, err
+	}
+	return delegators, nil
+}
+
+// GetBakerForDelegatorAtCycle returns the baker for a delegator at a specific cycle.
+func (p *psql) GetBakerForDelegatorAtCycle(ctx context.Context, delegator model.WalletAddress, cycle int) (model.WalletAddress, error) {
+	var baker model.WalletAddress
+	
+	// Converting cycle to timestamp range
+	// In Tezos, each cycle is approximately 2-3 days
+	// This is an approximation, adjust the logic based on actual Tezos protocol
+	cycleStartTime := time.Now().AddDate(0, 0, -cycle*3).Unix() // approximation
+	
+	query := `
+		SELECT delegate
+		FROM ` + p.tableDelegations + `
+		WHERE delegator = $1
+		AND timestamp <= $2
+		ORDER BY timestamp DESC
+		LIMIT 1
+	`
+	err := p.db.GetContext(ctx, &baker, query, delegator.String(), cycleStartTime)
+	if err != nil {
+		return "", err
+	}
+	return baker, nil
+}
+
+// SaveRewards saves multiple rewards to the repository.
+func (p *psql) SaveRewards(ctx context.Context, rewards []model.Reward) error {
+	tx, err := p.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	query := `
+		INSERT INTO ` + p.tableRewards + ` (recipient_address, source_address, cycle, amount, timestamp)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT DO NOTHING
+	`
+
+	for _, reward := range rewards {
+		_, err := tx.ExecContext(ctx, query, reward.RecipientAddress, reward.SourceAddress, reward.Cycle, reward.Amount, reward.Timestamp)
+		if err != nil {
+			if errRollBack := tx.Rollback(); errRollBack != nil {
+				return errors.New("query execution error: " + err.Error() + ", rollback error: " + errRollBack.Error())
+			}
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+// SaveLastSyncedRewardCycle saves the last synced reward cycle.
+func (p *psql) SaveLastSyncedRewardCycle(ctx context.Context, cycle int) error {
+	query := `
+		INSERT INTO app.sync_state (source, last_synced_level, last_synced_timestamp)
+		VALUES ('rewards', $1, CURRENT_TIMESTAMP)
+		ON CONFLICT (source) DO UPDATE
+		SET last_synced_level = $1, last_synced_timestamp = CURRENT_TIMESTAMP
+	`
+	
+	_, err := p.db.ExecContext(ctx, query, cycle)
+	return err
 }
 
 // Close closes the database connection.
