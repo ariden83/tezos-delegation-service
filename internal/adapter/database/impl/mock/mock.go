@@ -87,6 +87,36 @@ func (m *Mock) SaveStakingPools(ctx context.Context, stakingPools []model.Stakin
 	return args.Error(0)
 }
 
+// SaveRewards saves multiple rewards to the repository.
+func (m *Mock) SaveRewards(ctx context.Context, rewards []model.Reward) error {
+	args := m.Called(ctx, rewards)
+	return args.Error(0)
+}
+
+// GetLastSyncedRewardCycle returns the last synced reward cycle.
+func (m *Mock) GetLastSyncedRewardCycle(ctx context.Context) (int, error) {
+	args := m.Called(ctx)
+	return args.Int(0), args.Error(1)
+}
+
+// GetActiveDelegators returns a list of active delegators.
+func (m *Mock) GetActiveDelegators(ctx context.Context) ([]model.WalletAddress, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]model.WalletAddress), args.Error(1)
+}
+
+// GetBakerForDelegatorAtCycle returns the baker for a delegator at a specific cycle.
+func (m *Mock) GetBakerForDelegatorAtCycle(ctx context.Context, delegator model.WalletAddress, cycle int) (model.WalletAddress, error) {
+	args := m.Called(ctx, delegator, cycle)
+	return args.Get(0).(model.WalletAddress), args.Error(1)
+}
+
+// SaveLastSyncedRewardCycle saves the last synced reward cycle.
+func (m *Mock) SaveLastSyncedRewardCycle(ctx context.Context, cycle int) error {
+	args := m.Called(ctx, cycle)
+	return args.Error(0)
+}
+
 // Close closes the database connection.
 func (m *Mock) Close() error {
 	args := m.Called()

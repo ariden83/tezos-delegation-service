@@ -635,6 +635,291 @@ func Test_psql_SaveDelegations(t *testing.T) {
 	}
 }
 
+func Test_psql_GetLastSyncedRewardCycle(t *testing.T) {
+	tests := []struct {
+		name    string
+		db      *sqlx.DB
+		ctx     context.Context
+		want    int
+		wantErr assert.ErrorAssertionFunc
+	}{
+		{
+			name: "Nominal case",
+			db: func() *sqlx.DB {
+				db, mock, _ := sqlmock.New()
+				mock.ExpectQuery("SELECT COALESCE\\(last_synced_level, 0\\) AS cycle FROM app.sync_state WHERE source = 'rewards' LIMIT 1").
+					WillReturnRows(sqlmock.NewRows([]string{"cycle"}).AddRow(10))
+				return sqlx.NewDb(db, "sqlmock")
+			}(),
+			ctx:     context.Background(),
+			want:    10,
+			wantErr: assert.NoError,
+		},
+		{
+			name: "Error case - query error",
+			db: func() *sqlx.DB {
+				db, mock, _ := sqlmock.New()
+				mock.ExpectQuery("SELECT COALESCE\\(last_synced_level, 0\\) AS cycle FROM app.sync_state WHERE source = 'rewards' LIMIT 1").
+					WillReturnError(fmt.Errorf("query error"))
+				return sqlx.NewDb(db, "sqlmock")
+			}(),
+			ctx:     context.Background(),
+			want:    0,
+			wantErr: assert.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &psql{
+				db: tt.db,
+			}
+			got, err := p.GetLastSyncedRewardCycle(tt.ctx)
+			if !tt.wantErr(t, err, fmt.Sprintf("GetLastSyncedRewardCycle(%v)", tt.ctx)) {
+				return
+			}
+			assert.Equalf(t, tt.want, got, "GetLastSyncedRewardCycle(%v)", tt.ctx)
+		})
+	}
+}
+
+func Test_psql_GetActiveDelegators(t *testing.T) {
+	const tableDelegations = "app.delegations"
+	
+	tests := []struct {
+		name    string
+		db      *sqlx.DB
+		ctx     context.Context
+		want    []model.WalletAddress
+		wantErr assert.ErrorAssertionFunc
+	}{
+		{
+			name: "Nominal case",
+			db: func() *sqlx.DB {
+				db, mock, _ := sqlmock.New()
+				mock.ExpectQuery("SELECT DISTINCT delegator AS address FROM "+tableDelegations+" WHERE amount > 0 ORDER BY delegator").
+					WillReturnRows(sqlmock.NewRows([]string{"address"}).AddRow("tz1delegator1").AddRow("tz1delegator2"))
+				return sqlx.NewDb(db, "sqlmock")
+			}(),
+			ctx:     context.Background(),
+			want:    []model.WalletAddress{"tz1delegator1", "tz1delegator2"},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "Error case - query error",
+			db: func() *sqlx.DB {
+				db, mock, _ := sqlmock.New()
+				mock.ExpectQuery("SELECT DISTINCT delegator AS address FROM "+tableDelegations+" WHERE amount > 0 ORDER BY delegator").
+					WillReturnError(fmt.Errorf("query error"))
+				return sqlx.NewDb(db, "sqlmock")
+			}(),
+			ctx:     context.Background(),
+			want:    nil,
+			wantErr: assert.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &psql{
+				db:               tt.db,
+				tableDelegations: tableDelegations,
+			}
+			got, err := p.GetActiveDelegators(tt.ctx)
+			if !tt.wantErr(t, err, fmt.Sprintf("GetActiveDelegators(%v)", tt.ctx)) {
+				return
+			}
+			assert.Equalf(t, tt.want, got, "GetActiveDelegators(%v)", tt.ctx)
+		})
+	}
+}
+
+func Test_psql_GetBakerForDelegatorAtCycle(t *testing.T) {
+	const tableDelegations = "app.delegations"
+	
+	tests := []struct {
+		name      string
+		db        *sqlx.DB
+		ctx       context.Context
+		delegator model.WalletAddress
+		cycle     int
+		want      model.WalletAddress
+		wantErr   assert.ErrorAssertionFunc
+	}{
+		{
+			name: "Nominal case",
+			db: func() *sqlx.DB {
+				db, mock, _ := sqlmock.New()
+				// Nous ne testons pas exactement l'approximation du timestamp, mais la requête elle-même
+				mock.ExpectQuery("SELECT delegate FROM "+tableDelegations+" WHERE delegator = \\$1 AND timestamp <= \\$2 ORDER BY timestamp DESC LIMIT 1").
+					WithArgs("tz1delegator1", mock.AnyArg()).
+					WillReturnRows(sqlmock.NewRows([]string{"delegate"}).AddRow("tz1baker1"))
+				return sqlx.NewDb(db, "sqlmock")
+			}(),
+			ctx:       context.Background(),
+			delegator: "tz1delegator1",
+			cycle:     10,
+			want:      "tz1baker1",
+			wantErr:   assert.NoError,
+		},
+		{
+			name: "Error case - query error",
+			db: func() *sqlx.DB {
+				db, mock, _ := sqlmock.New()
+				mock.ExpectQuery("SELECT delegate FROM "+tableDelegations+" WHERE delegator = \\$1 AND timestamp <= \\$2 ORDER BY timestamp DESC LIMIT 1").
+					WithArgs("tz1delegator1", mock.AnyArg()).
+					WillReturnError(fmt.Errorf("query error"))
+				return sqlx.NewDb(db, "sqlmock")
+			}(),
+			ctx:       context.Background(),
+			delegator: "tz1delegator1",
+			cycle:     10,
+			want:      "",
+			wantErr:   assert.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &psql{
+				db:               tt.db,
+				tableDelegations: tableDelegations,
+			}
+			got, err := p.GetBakerForDelegatorAtCycle(tt.ctx, tt.delegator, tt.cycle)
+			if !tt.wantErr(t, err, fmt.Sprintf("GetBakerForDelegatorAtCycle(%v, %v, %v)", tt.ctx, tt.delegator, tt.cycle)) {
+				return
+			}
+			assert.Equalf(t, tt.want, got, "GetBakerForDelegatorAtCycle(%v, %v, %v)", tt.ctx, tt.delegator, tt.cycle)
+		})
+	}
+}
+
+func Test_psql_SaveRewards(t *testing.T) {
+	const tableRewards = "app.rewards"
+	
+	type args struct {
+		ctx     context.Context
+		rewards []model.Reward
+	}
+	tests := []struct {
+		name    string
+		db      *sqlx.DB
+		args    args
+		wantErr assert.ErrorAssertionFunc
+	}{
+		{
+			name: "Nominal case",
+			db: func() *sqlx.DB {
+				db, mock, _ := sqlmock.New()
+				mock.ExpectBegin()
+				mock.ExpectExec("INSERT INTO "+tableRewards).
+					WithArgs("tz1delegator1", "tz1baker1", 10, 5.5, int64(1672531199)).
+					WillReturnResult(sqlmock.NewResult(1, 1))
+				mock.ExpectExec("INSERT INTO "+tableRewards).
+					WithArgs("tz1delegator2", "tz1baker2", 10, 3.3, int64(1672531200)).
+					WillReturnResult(sqlmock.NewResult(2, 1))
+				mock.ExpectCommit()
+				return sqlx.NewDb(db, "sqlmock")
+			}(),
+			args: args{
+				ctx: context.Background(),
+				rewards: []model.Reward{
+					{RecipientAddress: "tz1delegator1", SourceAddress: "tz1baker1", Cycle: 10, Amount: 5.5, Timestamp: 1672531199},
+					{RecipientAddress: "tz1delegator2", SourceAddress: "tz1baker2", Cycle: 10, Amount: 3.3, Timestamp: 1672531200},
+				},
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "Error case - transaction begin error",
+			db: func() *sqlx.DB {
+				db, mock, _ := sqlmock.New()
+				mock.ExpectBegin().WillReturnError(fmt.Errorf("begin error"))
+				return sqlx.NewDb(db, "sqlmock")
+			}(),
+			args: args{
+				ctx: context.Background(),
+				rewards: []model.Reward{
+					{RecipientAddress: "tz1delegator1", SourceAddress: "tz1baker1", Cycle: 10, Amount: 5.5, Timestamp: 1672531199},
+				},
+			},
+			wantErr: assert.Error,
+		},
+		{
+			name: "Error case - insert error",
+			db: func() *sqlx.DB {
+				db, mock, _ := sqlmock.New()
+				mock.ExpectBegin()
+				mock.ExpectExec("INSERT INTO "+tableRewards).
+					WithArgs("tz1delegator1", "tz1baker1", 10, 5.5, int64(1672531199)).
+					WillReturnError(fmt.Errorf("insert error"))
+				mock.ExpectRollback()
+				return sqlx.NewDb(db, "sqlmock")
+			}(),
+			args: args{
+				ctx: context.Background(),
+				rewards: []model.Reward{
+					{RecipientAddress: "tz1delegator1", SourceAddress: "tz1baker1", Cycle: 10, Amount: 5.5, Timestamp: 1672531199},
+				},
+			},
+			wantErr: assert.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &psql{
+				db:          tt.db,
+				tableRewards: tableRewards,
+			}
+			tt.wantErr(t, p.SaveRewards(tt.args.ctx, tt.args.rewards),
+				fmt.Sprintf("SaveRewards(%v, %v)", tt.args.ctx, tt.args.rewards))
+		})
+	}
+}
+
+func Test_psql_SaveLastSyncedRewardCycle(t *testing.T) {
+	tests := []struct {
+		name    string
+		db      *sqlx.DB
+		ctx     context.Context
+		cycle   int
+		wantErr assert.ErrorAssertionFunc
+	}{
+		{
+			name: "Nominal case",
+			db: func() *sqlx.DB {
+				db, mock, _ := sqlmock.New()
+				mock.ExpectExec("INSERT INTO app.sync_state").
+					WithArgs("rewards", 10, mock.AnyArg()).
+					WillReturnResult(sqlmock.NewResult(1, 1))
+				return sqlx.NewDb(db, "sqlmock")
+			}(),
+			ctx:     context.Background(),
+			cycle:   10,
+			wantErr: assert.NoError,
+		},
+		{
+			name: "Error case - insert error",
+			db: func() *sqlx.DB {
+				db, mock, _ := sqlmock.New()
+				mock.ExpectExec("INSERT INTO app.sync_state").
+					WithArgs("rewards", 10, mock.AnyArg()).
+					WillReturnError(fmt.Errorf("insert error"))
+				return sqlx.NewDb(db, "sqlmock")
+			}(),
+			ctx:     context.Background(),
+			cycle:   10,
+			wantErr: assert.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &psql{
+				db: tt.db,
+			}
+			tt.wantErr(t, p.SaveLastSyncedRewardCycle(tt.ctx, tt.cycle),
+				fmt.Sprintf("SaveLastSyncedRewardCycle(%v, %v)", tt.ctx, tt.cycle))
+		})
+	}
+}
+
 func TestHelperProcess(t *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		return

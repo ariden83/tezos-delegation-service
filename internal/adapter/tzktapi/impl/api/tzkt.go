@@ -151,6 +151,93 @@ func (a *Adapter) FetchRewardsForBaker(blockID, bakerAddress string) (model.Rewa
 	return reward, nil
 }
 
+// GetCurrentCycle returns the current cycle from the TzKT API.
+func (a *Adapter) GetCurrentCycle(ctx context.Context) (int, error) {
+	url := fmt.Sprintf("%s/v1/head", a.apiURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("error creating request: %w", err)
+	}
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("error fetching current cycle: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			a.logger.Errorf("error closing response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	var head struct {
+		Cycle int `json:"cycle"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&head); err != nil {
+		return 0, fmt.Errorf("error decoding response: %w", err)
+	}
+
+	return head.Cycle, nil
+}
+
+// FetchRewardsForCycle fetches rewards for a specific delegator and baker in a given cycle.
+func (a *Adapter) FetchRewardsForCycle(ctx context.Context, delegator model.WalletAddress, baker model.WalletAddress, cycle int) ([]model.Reward, error) {
+	// TzKT API endpoint for rewards
+	url := fmt.Sprintf("%s/v1/rewards/delegators/%s/%d", a.apiURL, delegator, cycle)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %w", err)
+	}
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching rewards: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			a.logger.Errorf("error closing response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	// TzKT API response for rewards
+	var rewardsResponse struct {
+		RewardsShare float64 `json:"rewardsShare"`
+		Baker        struct {
+			Address string `json:"address"`
+		} `json:"baker"`
+		Cycle     int   `json:"cycle"`
+		Timestamp int64 `json:"timestamp"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&rewardsResponse); err != nil {
+		return nil, fmt.Errorf("error decoding response: %w", err)
+	}
+
+	// Only create a reward if there's an actual reward amount
+	if rewardsResponse.RewardsShare == 0 {
+		return nil, nil
+	}
+
+	// Create reward model
+	reward := model.Reward{
+		RecipientAddress: delegator,
+		SourceAddress:    model.WalletAddress(rewardsResponse.Baker.Address),
+		Cycle:            rewardsResponse.Cycle,
+		Amount:           rewardsResponse.RewardsShare,
+		Timestamp:        rewardsResponse.Timestamp,
+		TimestampTime:    time.Unix(rewardsResponse.Timestamp, 0).Format(time.RFC3339),
+	}
+
+	return []model.Reward{reward}, nil
+}
+
 // FetchWalletInfo fetches wallet information from the Tezos node.
 func (a *Adapter) FetchWalletInfo(blockID, walletAddress string) (model.WalletInfo, error) {
 	url := fmt.Sprintf("%s/chains/main/blocks/%s/context/contracts/%s", blockID, walletAddress)

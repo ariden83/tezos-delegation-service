@@ -5,3 +5,5 @@ bin/
 .env
 
 *.log
+
+**/.claude/settings.local.json
